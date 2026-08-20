@@ -27,11 +27,6 @@ import {
   FilterOptions 
 } from "./types";
 import { supabase, isSupabaseConfigured, fetchNewspaperNotesFromSupabase, deleteNewspaperNoteFromSupabase } from "./lib/supabase";
-import { 
-  getPendingRecords, 
-  getPendingPublications, 
-  subscribeToSyncEvents 
-} from "./services/offlineSyncService";
 import { usePermissions } from "./hooks/usePermissions";
 import { 
   Plus, 
@@ -128,25 +123,6 @@ export function App() {
     };
   }, []);
 
-  // Init sync listeners
-  useEffect(() => {
-    try {
-      const unsubscribe = subscribeToSyncEvents((status) => {
-        setIsSyncing(status.isSyncing);
-        if (status.lastError) {
-          setSyncStatusMsg(`Ошибка синхронизации: ${status.lastError}`);
-        } else if (status.pendingRecords === 0 && status.pendingPublications === 0) {
-          setSyncStatusMsg(null);
-        } else {
-          setSyncStatusMsg(`В очереди на выгрузку: ${status.pendingRecords + status.pendingPublications}`);
-        }
-      });
-      return () => unsubscribe();
-    } catch (e) {
-      console.warn("Sync subscribe notice:", e);
-    }
-  }, []);
-
   // Sync state to localStorage
   useEffect(() => {
     localStorage.setItem("zemlyane_records", JSON.stringify(records));
@@ -164,17 +140,7 @@ export function App() {
         const { data: recordsData, error: recordsError } = await supabase.from('records').select('*');
         if (!recordsError && recordsData) {
           const cleanRecordsData = recordsData.filter(r => !r.id?.startsWith("rec-demo-") && !r.id?.startsWith("demo-"));
-          const pendingOffline = getPendingRecords().filter(r => !r.id?.startsWith("rec-demo-") && !r.id?.startsWith("demo-"));
-          if (pendingOffline.length > 0) {
-            const pendingIds = new Set(pendingOffline.map(p => p.id));
-            const merged = [
-              ...pendingOffline,
-              ...cleanRecordsData.filter(r => !pendingIds.has(r.id))
-            ];
-            setRecords(merged);
-          } else {
-            setRecords(cleanRecordsData);
-          }
+          setRecords(cleanRecordsData);
 
           // Clean demo records from Supabase if any exist
           const demoRecs = recordsData.filter(r => r.id?.startsWith("rec-demo-") || r.id?.startsWith("demo-"));
@@ -188,17 +154,7 @@ export function App() {
         const notesFromSupabase = await fetchNewspaperNotesFromSupabase();
         if (notesFromSupabase) {
           const cleanNotes = notesFromSupabase.filter(n => n.id !== "note-01" && !n.id?.startsWith("note-demo-"));
-          const pendingPubs = getPendingPublications().filter(p => p.id !== "note-01" && !p.id?.startsWith("note-demo-"));
-          if (pendingPubs.length > 0) {
-            const pendingIds = new Set(pendingPubs.map(p => p.id));
-            const merged = [
-              ...pendingPubs,
-              ...cleanNotes.filter(n => !pendingIds.has(n.id))
-            ];
-            setNewspaperNotes(merged);
-          } else {
-            setNewspaperNotes(cleanNotes);
-          }
+          setNewspaperNotes(cleanNotes);
 
           // Clean demo notes from Supabase if any exist
           const demoNotes = notesFromSupabase.filter(n => n.id === "note-01" || n.id?.startsWith("note-demo-"));
