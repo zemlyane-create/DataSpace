@@ -32,13 +32,6 @@ import {
   getPendingPublications, 
   subscribeToSyncEvents 
 } from "./services/offlineSyncService";
-import { 
-  getCurrentUserProfile, 
-  logoutClubMember, 
-  ClubMemberProfile, 
-  isAdminRole,
-  ensureAdminProfileExists 
-} from "./services/clubService";
 import { usePermissions } from "./hooks/usePermissions";
 import { 
   Plus, 
@@ -64,7 +57,17 @@ export function App() {
   const [isStationPassportOpen, setIsStationPassportOpen] = useState(false);
   const [infoCategory, setInfoCategory] = useState<ObservationCategory>("hydrosphere");
   const [passportStation, setPassportStation] = useState<EcoStation | null>(null);
-  const [currentUser, setCurrentUser] = useState<ClubMemberProfile | null>(null);
+  
+  // Safe profile state from localStorage
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem("zemlyane_custom_profile_v1");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
@@ -125,28 +128,23 @@ export function App() {
     };
   }, []);
 
-  // Init sync listeners and auth
+  // Init sync listeners
   useEffect(() => {
-    // Check local auth profile
-    const profile = getCurrentUserProfile();
-    if (profile) {
-      setCurrentUser(profile);
-    } else {
-      ensureAdminProfileExists().catch(() => {});
+    try {
+      const unsubscribe = subscribeToSyncEvents((status) => {
+        setIsSyncing(status.isSyncing);
+        if (status.lastError) {
+          setSyncStatusMsg(`Ошибка синхронизации: ${status.lastError}`);
+        } else if (status.pendingRecords === 0 && status.pendingPublications === 0) {
+          setSyncStatusMsg(null);
+        } else {
+          setSyncStatusMsg(`В очереди на выгрузку: ${status.pendingRecords + status.pendingPublications}`);
+        }
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.warn("Sync subscribe notice:", e);
     }
-
-    const unsubscribe = subscribeToSyncEvents((status) => {
-      setIsSyncing(status.isSyncing);
-      if (status.lastError) {
-        setSyncStatusMsg(`Ошибка синхронизации: ${status.lastError}`);
-      } else if (status.pendingRecords === 0 && status.pendingPublications === 0) {
-        setSyncStatusMsg(null);
-      } else {
-        setSyncStatusMsg(`В очереди на выгрузку: ${status.pendingRecords + status.pendingPublications}`);
-      }
-    });
-
-    return () => unsubscribe();
   }, []);
 
   // Sync state to localStorage
@@ -178,7 +176,7 @@ export function App() {
             setRecords(cleanRecordsData);
           }
 
-          // Clean demo records from Supabase if any exist from initial seed
+          // Clean demo records from Supabase if any exist
           const demoRecs = recordsData.filter(r => r.id?.startsWith("rec-demo-") || r.id?.startsWith("demo-"));
           if (demoRecs.length > 0) {
             demoRecs.forEach(dr => {
@@ -274,7 +272,11 @@ export function App() {
   };
 
   const handleLogout = () => {
-    logoutClubMember();
+    try {
+      localStorage.removeItem("zemlyane_custom_profile_v1");
+      localStorage.removeItem("zemlyane_current_email");
+      sessionStorage.clear();
+    } catch (e) {}
     setCurrentUser(null);
   };
 
