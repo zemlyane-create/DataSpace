@@ -1,0 +1,6 @@
+{
+  "name": "Zemlyane.DataSpace",
+  "description": "Платформа эко-мониторинга и долговременных исследований школьного эко-клуба «Земляне» (Александровка)",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

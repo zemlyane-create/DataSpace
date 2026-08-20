@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" rx="36" fill="#0b1512" />
+  <circle cx="96" cy="96" r="64" fill="#132a22" stroke="#10b981" stroke-width="4" />
+  <!-- Globe / Eco lines -->
+  <path d="M 40 96 Q 96 60, 152 96" fill="none" stroke="#10b981" stroke-width="3" opacity="0.8" />
+  <path d="M 40 96 Q 96 132, 152 96" fill="none" stroke="#10b981" stroke-width="3" opacity="0.8" />
+  <ellipse cx="96" cy="96" rx="32" ry="64" fill="none" stroke="#10b981" stroke-width="3" opacity="0.8" />
+  <!-- Sprout / Leaf icon in center -->
+  <path d="M 96 120 C 96 85, 125 75, 130 65 C 130 85, 115 110, 96 120 Z" fill="#34d399" />
+  <path d="M 96 120 C 96 95, 75 85, 70 75 C 70 92, 82 112, 96 120 Z" fill="#10b981" />
+  <circle cx="96" cy="120" r="3.5" fill="#f8fafc" />
+</svg>

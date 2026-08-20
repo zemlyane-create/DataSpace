@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zemlyane.DataSpace — Эко-мониторинг долговременных исследований</title>
+    
+    <!-- PWA & Mobile Meta Tags -->
+    <meta name="theme-color" content="#0b1512" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Земляне" />
+    <meta name="description" content="Интерактивная исследовательская платформа эко-мониторинга долговременных исследований" />
+    <link rel="icon" type="image/svg+xml" href="/pwa-192x192.svg" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.svg" />
+
+    <!-- Leaflet GIS Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Google Fonts for Scientific Field Terminal & Academic Publishing -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- SPA Redirect Handling for GitHub Pages -->
+    <script type="text/javascript">
+      (function(l) {
+        if (l.search[1] === '/' ) {
+          var decoded = l.search.slice(1).split('&').map(function(s) { 
+            return s.replace(/~and~/g, '&') 
+          }).join('?');
+          window.history.replaceState(null, null,
+              l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      }(window.location))
+    </script>
+    <!-- External Libraries CDN (jsPDF & QRCode.js) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+      /* Deep nature background with subtle topographic map contour lines pattern */
+      body {
+        background-color: #0b1512;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cpath d='M 0 30 Q 60 10, 120 30 T 240 30 M 0 70 Q 80 90, 160 60 T 240 80 M 0 120 Q 50 140, 110 110 T 240 130 M 0 170 Q 70 150, 140 180 T 240 160 M 40 0 Q 20 60, 50 120 T 30 240 M 100 0 Q 120 70, 80 140 T 110 240 M 170 0 Q 150 60, 180 130 T 160 240' fill='none' stroke='%2310b981' stroke-width='0.5' opacity='0.12'/%3E%3C/svg%3E");
+        background-size: 240px 240px;
+        background-attachment: fixed;
+        color: #f1f5f9;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      }
+
+      /* Custom scrollbars */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0b1512;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #1e3a2f;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #10b981;
+      }
+
+      /* Leaflet custom map tweaks */
+      .leaflet-container img { max-width: none !important; }
+      .leaflet-tile { max-width: none !important; background: transparent !important; }
+      .leaflet-marker-icon { background: transparent; }
+      .leaflet-popup-content-wrapper {
+        background: #0f1c18 !important;
+        color: #f8fafc !important;
+        border: 1px solid #10b981;
+        border-radius: 12px !important;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7) !important;
+      }
+      .leaflet-popup-tip {
+        background: #0f1c18 !important;
+      }
+
+      /* Custom animation utilities */
+      @keyframes pulseSlow {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.08); opacity: 0.85; }
+      }
+      .animate-pulse-slow {
+        animation: pulseSlow 3s infinite ease-in-out;
+      }
+    </style>
+  </head>
+  <body class="bg-[#0b1512] text-slate-100 font-sans antialiased selection:bg-emerald-500 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
