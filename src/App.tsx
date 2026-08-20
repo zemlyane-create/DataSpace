@@ -30,7 +30,6 @@ import { supabase, isSupabaseConfigured, fetchNewspaperNotesFromSupabase, delete
 import { 
   getPendingRecords, 
   getPendingPublications, 
-  initOfflineSync, 
   subscribeToSyncEvents 
 } from "./services/offlineSyncService";
 import { 
@@ -126,10 +125,8 @@ export function App() {
     };
   }, []);
 
-  // Init sync service and auth
+  // Init sync listeners and auth
   useEffect(() => {
-    initOfflineSync();
-    
     // Check local auth profile
     const profile = getCurrentUserProfile();
     if (profile) {
