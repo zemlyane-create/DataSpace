@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { NewspaperNote } from "../types";
-import { Plus, X, Calendar, User, Tag, Edit3, Newspaper, Feather, Trash2, Edit } from "lucide-react";
+import { Plus, X, Calendar, User, Tag, Edit3, Newspaper, Feather, Trash2, Edit, ChevronLeft, ChevronRight, BookOpen, Layers } from "lucide-react";
 
 interface NewspaperWidgetProps {
   notes: NewspaperNote[];
@@ -24,6 +24,9 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
   const [editingNote, setEditingNote] = useState<NewspaperNote | null>(null);
   const [noteToDeleteId, setNoteToDeleteId] = useState<string | null>(null);
 
+  // Pagination for notes (0 is latest, 1, 2, ... are older editions)
+  const [currentIndex, setCurrentIndex] = useState(0);
+
   // New Note Form State
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
@@ -33,6 +36,10 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
   const [imageUrl, setImageUrl] = useState("");
 
   const isPending = userStatus === "pending";
+
+  // Clamp current index if notes list changed
+  const safeIndex = Math.min(Math.max(0, currentIndex), Math.max(0, notes.length - 1));
+  const currentNote = notes[safeIndex] || null;
 
   const handleOpenAddModal = () => {
     if (!canEditNewspaper) {
@@ -128,6 +135,7 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
         isClipping: true
       };
       onAddNote(newNoteObj);
+      setCurrentIndex(0); // Show freshly published note
     }
 
     setIsAddModalOpen(false);
@@ -140,18 +148,14 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
     setCategorySelect("Экспедиционный отчёт");
   };
 
-  // Split notes for 2-column newspaper spread
-  const leftColumnNotes = notes.filter((_, idx) => idx % 2 === 0);
-  const rightColumnNotes = notes.filter((_, idx) => idx % 2 === 1);
-
   return (
-    <div className="bg-[#f4ecd8] border-8 border-double border-[#5c3e1e] rounded-2xl p-4 sm:p-8 shadow-2xl relative overflow-hidden font-serif text-[#2b1d0c] h-full flex flex-col justify-between">
+    <div className="bg-[#f4ecd8] border-8 border-double border-[#5c3e1e] rounded-3xl p-4 sm:p-8 shadow-2xl relative overflow-hidden font-serif text-[#2b1d0c] h-full flex flex-col justify-between max-w-5xl mx-auto">
       
       {/* Retro Newspaper Editorial Header */}
       <div className="border-b-2 border-t-2 border-[#5c3e1e] py-3 mb-6 text-center relative">
-        <div className="flex flex-row items-center justify-between text-[8px] sm:text-[9.5px] md:text-[11px] font-mono uppercase tracking-wider text-[#5c3e1e] border-b border-[#8c6b43]/40 pb-1.5 mb-2 whitespace-nowrap gap-1">
-          <span>Выпуск № 013 в Тентуре</span>
-          <span className="font-bold text-[#3b2713]">И тут они подумали: а почему бы и нет?</span>
+        <div className="flex flex-row items-center justify-between text-[9px] sm:text-[11px] font-mono uppercase tracking-wider text-[#5c3e1e] border-b border-[#8c6b43]/40 pb-1.5 mb-2 whitespace-nowrap gap-1">
+          <span>Свежий выпуск</span>
+          <span className="font-bold text-[#3b2713] hidden sm:inline">Экологический клуб «Земляне»</span>
           <span>КАЗАХСТАН • АЛЕКСАНДРОВКА</span>
         </div>
 
@@ -163,184 +167,203 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
           «НЕежедневный Пророк: хроники землян и мониторинга окружающей среды»
         </p>
 
-        {/* Action Button - ONLY for users with canEditNewspaper */}
-        {canEditNewspaper && (
-          <div className="mt-4 flex justify-center">
+        {/* Action Button & Stats */}
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          {canEditNewspaper && (
             <button
               onClick={handleOpenAddModal}
-              className="px-5 py-2 bg-[#5c3e1e] hover:bg-[#422c15] text-[#f4ecd8] rounded-full text-xs font-sans font-bold shadow-lg transition flex items-center space-x-2 border border-[#8c6b43]"
+              className="px-5 py-2 bg-[#5c3e1e] hover:bg-[#422c15] text-[#f4ecd8] rounded-full text-xs font-sans font-bold shadow-lg transition flex items-center space-x-2 border border-[#8c6b43] active:scale-95 cursor-pointer"
             >
               <Feather className="w-4 h-4 text-amber-200" />
               <span>+ Опубликовать авторскую заметку в номер</span>
             </button>
-          </div>
-        )}
+          )}
+
+          {notes.length > 0 && (
+            <div className="flex items-center space-x-2 bg-[#e8debe] px-3.5 py-1.5 rounded-full border border-[#b89f7a] text-xs font-sans text-[#5c3e1e]">
+              <Layers className="w-3.5 h-3.5" />
+              <span>Всего в архиве: <strong>{notes.length}</strong></span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* 2-Page Newspaper Spread Grid with Central Dashed Divider */}
-      {notes.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 divide-y md:divide-y-0 md:divide-x divide-dashed divide-[#8c6b43]">
+      {/* SINGLE NOTE SPREAD WITH PAGINATION BROWSING */}
+      {currentNote ? (
+        <div className="space-y-6">
           
-          {/* PAGE 1 (LEFT SPREAD) */}
-          <div className="space-y-6 pr-0 md:pr-4">
-            <div className="border-b-2 border-[#5c3e1e] pb-1 mb-3 flex items-center justify-between">
-              <span className="font-bold uppercase tracking-wider text-xs text-[#5c3e1e]">
-                СТРАНИЦА 1 • РЕДАКЦИОННАЯ КОЛОНКА
+          {/* Navigation Toolbar between editions */}
+          <div className="bg-[#ede1c4] border-2 border-[#b89f7a] rounded-2xl p-3 sm:px-6 flex flex-wrap items-center justify-between gap-3 shadow-inner">
+            <div className="flex items-center space-x-2">
+              <span className="font-sans text-xs font-bold text-[#5c3e1e] uppercase tracking-wider flex items-center gap-1.5">
+                <BookOpen className="w-4 h-4 text-[#8c6b43]" />
+                {safeIndex === 0 ? "🌟 Свежая новость (Последний выпуск)" : `Архивный материал (№ ${notes.length - safeIndex})`}
               </span>
-              <span className="text-[10px] italic text-[#7a5833]">ПОЛЕВЫЕ ОТЧЕТЫ</span>
+              <span className="text-xs font-mono bg-[#dfd0af] px-2.5 py-0.5 rounded-full border border-[#a88f67] text-[#422c15] font-bold">
+                {safeIndex + 1} из {notes.length}
+              </span>
             </div>
 
-            {leftColumnNotes.map((note) => (
-              <article
-                key={note.id}
-                onClick={() => setActiveNote(note)}
-                className="group cursor-pointer bg-[#ece2c8]/80 hover:bg-[#ede0c1] p-4 rounded-xl border border-[#b89f7a] shadow-sm transition duration-200 space-y-2"
+            {/* Pagination Controls */}
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                disabled={safeIndex === 0}
+                onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
+                className={`px-3 py-1.5 rounded-xl text-xs font-sans font-bold flex items-center space-x-1 border transition ${
+                  safeIndex === 0 
+                    ? "bg-[#dfd0af]/50 text-[#8c6b43]/50 border-transparent cursor-not-allowed" 
+                    : "bg-[#5c3e1e] hover:bg-[#422c15] text-[#f4ecd8] border-[#8c6b43] shadow-sm cursor-pointer active:scale-95"
+                }`}
+                title="Перейти к более свежей новости"
               >
-                {note.imageUrl && (
-                  <div className="overflow-hidden rounded-lg mb-2 border border-[#8c6b43]/60">
-                    <img
-                      src={note.imageUrl}
-                      alt={note.title}
-                      className="w-full h-44 object-cover filter sepia-[0.35] group-hover:scale-105 transition duration-500"
-                    />
-                  </div>
-                )}
+                <ChevronLeft className="w-4 h-4" />
+                <span>Новее</span>
+              </button>
 
-                <div className="flex items-center justify-between text-[11px] text-[#5c3e1e] font-sans">
-                  <span className="font-bold uppercase tracking-wider bg-[#d9c7a5] px-2 py-0.5 rounded border border-[#a88f67]">
-                    {note.category}
-                  </span>
-                  <span>{note.date}</span>
-                </div>
-
-                <h3 className="text-lg font-extrabold text-[#2b1d0c] font-serif leading-snug group-hover:underline">
-                  {note.title}
-                </h3>
-
-                <p className="text-xs sm:text-sm text-[#3d2b17] font-serif line-clamp-4 leading-relaxed italic">
-                  «{note.content}»
-                </p>
-
-                <div className="pt-2 border-t border-[#b89f7a]/60 flex items-center justify-between text-xs text-[#5c3e1e]">
-                  <span className="font-sans italic">Автор: {note.author}</span>
-                  <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
-                    {canEditNewspaper && (
-                      <>
-                        <button
-                          onClick={(e) => handleOpenEditModal(note, e)}
-                          title="Редактировать статью"
-                          className="p-1 text-[#5c3e1e] hover:text-[#2b1d0c] hover:bg-[#d9c7a5] rounded transition flex items-center space-x-0.5 text-[11px]"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Ред.</span>
-                        </button>
-                        <button
-                          onClick={(e) => handleDelete(note.id, e)}
-                          title="Удалить статью"
-                          className="p-1 text-red-700 hover:text-red-900 hover:bg-red-100 rounded transition flex items-center space-x-0.5 text-[11px]"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
-                    <span 
-                      onClick={() => setActiveNote(note)}
-                      className="font-bold text-[#422c15] group-hover:translate-x-1 transition cursor-pointer ml-1"
-                    >
-                      Читать →
-                    </span>
-                  </div>
-                </div>
-              </article>
-            ))}
+              <button
+                type="button"
+                disabled={safeIndex >= notes.length - 1}
+                onClick={() => setCurrentIndex(prev => Math.min(notes.length - 1, prev + 1))}
+                className={`px-3 py-1.5 rounded-xl text-xs font-sans font-bold flex items-center space-x-1 border transition ${
+                  safeIndex >= notes.length - 1 
+                    ? "bg-[#dfd0af]/50 text-[#8c6b43]/50 border-transparent cursor-not-allowed" 
+                    : "bg-[#5c3e1e] hover:bg-[#422c15] text-[#f4ecd8] border-[#8c6b43] shadow-sm cursor-pointer active:scale-95"
+                }`}
+                title="Перейти к предыдущей (более старой) новости"
+              >
+                <span>Листать дальше</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          {/* PAGE 2 (RIGHT SPREAD) */}
-          <div className="space-y-6 pl-0 md:pl-8 pt-6 md:pt-0">
-            <div className="border-b-2 border-[#5c3e1e] pb-1 mb-3 flex items-center justify-between">
-              <span className="font-bold uppercase tracking-wider text-xs text-[#5c3e1e]">
-                СТРАНИЦА 2 • ХРОНИКА И ЭКО-ОТКРЫТИЯ
+          {/* Current Newspaper Article Spread Card */}
+          <article className="bg-[#ece2c8]/90 border-2 border-[#b89f7a] rounded-2xl p-6 sm:p-8 shadow-md relative group space-y-5">
+            
+            {/* Header info */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#8c6b43]/50 pb-3">
+              <span className="font-bold uppercase tracking-wider bg-[#d9c7a5] text-[#422c15] px-3 py-1 rounded-lg border border-[#a88f67] text-xs font-sans">
+                {currentNote.category}
               </span>
-              <span className="text-[10px] italic text-[#7a5833]">ВЕСТНИК СТАНЦИЙ</span>
+              <div className="flex items-center space-x-1.5 text-xs text-[#5c3e1e] font-sans">
+                <Calendar className="w-3.5 h-3.5" />
+                <span>{currentNote.date}</span>
+              </div>
             </div>
 
-            {rightColumnNotes.map((note) => (
-              <article
-                key={note.id}
-                onClick={() => setActiveNote(note)}
-                className="group cursor-pointer bg-[#ece2c8]/80 hover:bg-[#ede0c1] p-4 rounded-xl border border-[#b89f7a] shadow-sm transition duration-200 space-y-2"
-              >
-                {note.imageUrl && (
-                  <div className="overflow-hidden rounded-lg mb-2 border border-[#8c6b43]/60">
-                    <img
-                      src={note.imageUrl}
-                      alt={note.title}
-                      className="w-full h-44 object-cover filter sepia-[0.35] group-hover:scale-105 transition duration-500"
-                    />
-                  </div>
-                )}
+            {/* Title */}
+            <h3 
+              onClick={() => setActiveNote(currentNote)}
+              className="text-2xl sm:text-3xl font-black text-[#2b1d0c] font-serif leading-tight hover:text-[#5c3e1e] transition cursor-pointer"
+            >
+              {currentNote.title}
+            </h3>
 
-                <div className="flex items-center justify-between text-[11px] text-[#5c3e1e] font-sans">
-                  <span className="font-bold uppercase tracking-wider bg-[#d9c7a5] px-2 py-0.5 rounded border border-[#a88f67]">
-                    {note.category}
-                  </span>
-                  <span>{note.date}</span>
+            {/* Layout: Image + Text */}
+            <div className={`grid grid-cols-1 ${currentNote.imageUrl ? "md:grid-cols-12 gap-6" : "gap-4"} items-start`}>
+              {currentNote.imageUrl && (
+                <div className="md:col-span-5 overflow-hidden rounded-xl border-2 border-[#8c6b43]/70 shadow">
+                  <img
+                    src={currentNote.imageUrl}
+                    alt={currentNote.title}
+                    className="w-full h-56 sm:h-64 object-cover filter sepia-[0.3] hover:scale-105 transition duration-500 cursor-pointer"
+                    onClick={() => setActiveNote(currentNote)}
+                  />
                 </div>
+              )}
 
-                <h3 className="text-lg font-extrabold text-[#2b1d0c] font-serif leading-snug group-hover:underline">
-                  {note.title}
-                </h3>
-
-                <p className="text-xs sm:text-sm text-[#3d2b17] font-serif line-clamp-4 leading-relaxed italic">
-                  «{note.content}»
+              <div className={`${currentNote.imageUrl ? "md:col-span-7" : "w-full"} space-y-4`}>
+                <p className="text-sm sm:text-base text-[#3d2b17] font-serif leading-relaxed italic line-clamp-6">
+                  «{currentNote.content}»
                 </p>
 
-                <div className="pt-2 border-t border-[#b89f7a]/60 flex items-center justify-between text-xs text-[#5c3e1e]">
-                  <span className="font-sans italic">Автор: {note.author}</span>
-                  <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
-                    {canEditNewspaper && (
-                      <>
-                        <button
-                          onClick={(e) => handleOpenEditModal(note, e)}
-                          title="Редактировать статью"
-                          className="p-1 text-[#5c3e1e] hover:text-[#2b1d0c] hover:bg-[#d9c7a5] rounded transition flex items-center space-x-0.5 text-[11px]"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Ред.</span>
-                        </button>
-                        <button
-                          onClick={(e) => handleDelete(note.id, e)}
-                          title="Удалить статью"
-                          className="p-1 text-red-700 hover:text-red-900 hover:bg-red-100 rounded transition flex items-center space-x-0.5 text-[11px]"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
-                    <span 
-                      onClick={() => setActiveNote(note)}
-                      className="font-bold text-[#422c15] group-hover:translate-x-1 transition cursor-pointer ml-1"
+                <button
+                  type="button"
+                  onClick={() => setActiveNote(currentNote)}
+                  className="px-4 py-2 bg-[#d9c7a5] hover:bg-[#cbb691] text-[#2b1d0c] text-xs font-sans font-bold rounded-xl border border-[#a88f67] transition flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <span>Читать материал полностью</span>
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Author & Editorial Management Controls */}
+            <div className="pt-4 border-t border-[#b89f7a]/80 flex flex-wrap items-center justify-between gap-3 text-xs text-[#5c3e1e] font-sans">
+              <div className="flex items-center space-x-1.5">
+                <User className="w-4 h-4 text-[#8c6b43]" />
+                <span>Корреспондент: <strong>{currentNote.author}</strong></span>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                {canEditNewspaper && (
+                  <>
+                    <button
+                      onClick={(e) => handleOpenEditModal(currentNote, e)}
+                      title="Редактировать статью"
+                      className="px-3 py-1.5 bg-[#d9c7a5] hover:bg-[#cbb691] text-[#2b1d0c] rounded-xl transition flex items-center space-x-1 text-xs font-bold border border-[#a88f67] cursor-pointer"
                     >
-                      Читать →
-                    </span>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Редактировать</span>
+                    </button>
+                    <button
+                      onClick={(e) => handleDelete(currentNote.id, e)}
+                      title="Удалить статью"
+                      className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 rounded-xl transition flex items-center space-x-1 text-xs font-bold border border-red-300 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Удалить</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+          </article>
+
+          {/* Quick thumbnails / list for fast switching */}
+          {notes.length > 1 && (
+            <div className="pt-2 border-t border-dashed border-[#8c6b43]/60">
+              <div className="text-[11px] font-sans font-bold text-[#5c3e1e] uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                <span>Быстрый выбор выпуска:</span>
+              </div>
+              <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-thin">
+                {notes.map((note, idx) => (
+                  <button
+                    key={note.id}
+                    onClick={() => setCurrentIndex(idx)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-sans whitespace-nowrap transition border ${
+                      idx === safeIndex
+                        ? "bg-[#5c3e1e] text-[#f4ecd8] font-bold border-[#422c15] shadow-sm"
+                        : "bg-[#e8debe] hover:bg-[#d9c7a5] text-[#5c3e1e] border-[#b89f7a]"
+                    }`}
+                  >
+                    {idx === 0 ? "⭐ Свежий" : `№ ${notes.length - idx}`}: {note.title.slice(0, 24)}...
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
         </div>
       ) : (
-        <div className="text-center py-12 px-4 bg-[#ece2c8] rounded-xl border border-dashed border-[#8c6b43]">
-          <p className="text-[#3d2b17] text-sm font-serif mb-3">
-            В свежем номере газеты «Хроники Землян» пока нет опубликованных заметок.
+        <div className="text-center py-14 px-4 bg-[#ece2c8] rounded-2xl border-2 border-dashed border-[#8c6b43] my-4">
+          <div className="w-14 h-14 bg-[#dfd0af] rounded-full flex items-center justify-center mx-auto mb-3 text-[#5c3e1e] border border-[#b89f7a]">
+            <Newspaper className="w-7 h-7" />
+          </div>
+          <h4 className="text-lg font-bold font-serif text-[#2b1d0c] mb-1">
+            В свежем номере газеты пока нет заметок
+          </h4>
+          <p className="text-[#5c3e1e] text-xs sm:text-sm font-serif max-w-md mx-auto mb-5">
+            Здесь будет публиковаться главная последняя новость с удобной возможностью листать архивные выпуски.
           </p>
           {canEditNewspaper && (
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="px-5 py-2 bg-[#5c3e1e] hover:bg-[#422c15] text-[#f4ecd8] rounded-xl font-sans font-bold text-xs transition shadow"
+              className="px-6 py-2.5 bg-[#5c3e1e] hover:bg-[#422c15] text-[#f4ecd8] rounded-xl font-sans font-bold text-xs transition shadow-md border border-[#8c6b43]"
             >
-              + Стать первым корреспондентом номера
+              + Опубликовать первую статью номера
             </button>
           )}
         </div>
@@ -349,10 +372,10 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
       {/* READ NOTE VINTAGE MODAL */}
       {activeNote && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-          <div className="bg-[#f4ecd8] border-8 border-double border-[#5c3e1e] rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl relative font-serif text-[#2b1d0c]">
+          <div className="bg-[#f4ecd8] border-8 border-double border-[#5c3e1e] rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl relative font-serif text-[#2b1d0c]">
             <button
               onClick={() => setActiveNote(null)}
-              className="absolute top-4 right-4 p-2 text-[#5c3e1e] hover:text-black bg-[#e3d7ba] rounded-xl transition border border-[#a88f67]"
+              className="absolute top-4 right-4 p-2 text-[#5c3e1e] hover:text-black bg-[#e3d7ba] rounded-xl transition border border-[#a88f67] cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -385,14 +408,14 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
                   <>
                     <button
                       onClick={() => handleOpenEditModal(activeNote)}
-                      className="px-4 py-2 bg-[#d9c7a5] text-[#2b1d0c] hover:bg-[#cbb691] rounded-xl font-bold transition flex items-center space-x-1 border border-[#a88f67]"
+                      className="px-4 py-2 bg-[#d9c7a5] text-[#2b1d0c] hover:bg-[#cbb691] rounded-xl font-bold transition flex items-center space-x-1 border border-[#a88f67] cursor-pointer"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                       <span>Редактировать</span>
                     </button>
                     <button
                       onClick={() => handleDelete(activeNote.id)}
-                      className="px-4 py-2 bg-red-800 text-white hover:bg-red-700 rounded-xl font-bold transition flex items-center space-x-1"
+                      className="px-4 py-2 bg-red-800 text-white hover:bg-red-700 rounded-xl font-bold transition flex items-center space-x-1 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Удалить</span>
@@ -401,7 +424,7 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
                 )}
                 <button
                   onClick={() => setActiveNote(null)}
-                  className="px-5 py-2 bg-[#5c3e1e] text-[#f4ecd8] hover:bg-[#3d2712] rounded-xl font-bold transition"
+                  className="px-5 py-2 bg-[#5c3e1e] text-[#f4ecd8] hover:bg-[#3d2712] rounded-xl font-bold transition cursor-pointer"
                 >
                   Закрыть
                 </button>
@@ -414,10 +437,10 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
       {/* CREATE / EDIT NOTE MODAL */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-          <div className="bg-[#f4ecd8] border-8 border-double border-[#5c3e1e] rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl relative font-sans text-[#2b1d0c]">
+          <div className="bg-[#f4ecd8] border-8 border-double border-[#5c3e1e] rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl relative font-sans text-[#2b1d0c]">
             <button
               onClick={() => setIsAddModalOpen(false)}
-              className="absolute top-4 right-4 p-2 text-[#5c3e1e] hover:text-black bg-[#e3d7ba] rounded-xl transition border border-[#a88f67]"
+              className="absolute top-4 right-4 p-2 text-[#5c3e1e] hover:text-black bg-[#e3d7ba] rounded-xl transition border border-[#a88f67] cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -514,13 +537,13 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-5 py-2.5 bg-[#d9caaa] text-[#422c15] rounded-xl font-medium"
+                  className="px-5 py-2.5 bg-[#d9caaa] text-[#422c15] rounded-xl font-medium cursor-pointer"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-[#5c3e1e] hover:bg-[#422c15] text-[#f4ecd8] rounded-xl font-bold shadow-md transition"
+                  className="px-6 py-2.5 bg-[#5c3e1e] hover:bg-[#422c15] text-[#f4ecd8] rounded-xl font-bold shadow-md transition cursor-pointer"
                 >
                   Отправить в печать
                 </button>
@@ -543,7 +566,7 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
             <div className="flex items-center justify-end space-x-3">
               <button
                 onClick={() => setNoteToDeleteId(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs cursor-pointer"
               >
                 Отмена
               </button>
@@ -553,7 +576,7 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
                   if (activeNote?.id === noteToDeleteId) setActiveNote(null);
                   setNoteToDeleteId(null);
                 }}
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold text-xs shadow-lg transition flex items-center space-x-1.5"
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold text-xs shadow-lg transition flex items-center space-x-1.5 cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Удалить статью</span>
@@ -566,3 +589,4 @@ export const NewspaperWidget: React.FC<NewspaperWidgetProps> = ({
     </div>
   );
 };
+
