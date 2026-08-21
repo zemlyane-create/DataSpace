@@ -1036,25 +1036,25 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-              <div className="lg:col-span-7 flex flex-col">
-                <NewspaperWidget
-                  notes={newspaperNotes}
-                  onAddNote={handleAddNote}
-                  onDeleteNote={handleDeleteNote}
-                  onEditNote={handleEditNote}
-                  userStatus={currentUser?.status}
-                  canEditNewspaper={accessControl.canEditNewspaper}
-                />
-              </div>
+            {/* Школьная газета «Хроники Землян» */}
+            <section className="w-full">
+              <NewspaperWidget
+                notes={newspaperNotes}
+                onAddNote={handleAddNote}
+                onDeleteNote={handleDeleteNote}
+                onEditNote={handleEditNote}
+                userStatus={currentUser?.status}
+                canEditNewspaper={accessControl.canEditNewspaper}
+              />
+            </section>
 
-              <div className="lg:col-span-5 flex flex-col">
-                <EcoCalendarWidget 
-                  isDark={isDark} 
-                  canEditCalendar={accessControl.canEditCalendar}
-                />
-              </div>
-            </div>
+            {/* Настенный интерактивный Эко-календарь */}
+            <section className="w-full">
+              <EcoCalendarWidget 
+                isDark={isDark} 
+                canEditCalendar={accessControl.canEditCalendar}
+              />
+            </section>
 
           </div>
         )}
