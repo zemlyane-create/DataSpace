@@ -125,6 +125,15 @@ export interface FossilParams {
   photoUrl?: string;
 }
 
+export interface CustomMetric {
+  id: string;
+  name: string;           // Название, напр. "Радиационный фон", "Микропластик"
+  value: number | string; // Численное или текстовое значение
+  unit: string;           // Единица измерения, напр. "мкЗв/ч", "шт/л", "мг/дм³"
+  minNorm?: number;       // Опциональная граница нормы
+  maxNorm?: number;
+}
+
 export interface MonitoringRecord {
   id: string;
   stationCode: string; // e.g., ALX-01, TBL-01
@@ -143,6 +152,9 @@ export interface MonitoringRecord {
   anthropogenic?: AnthropogenicParams;
   geology?: GeologyParams;
   fossils?: FossilParams;
+
+  // Custom User-defined extensible metrics & measurements
+  customAttributes?: Record<string, CustomMetric> | CustomMetric[];
 
   aiAlert?: string;
   isAnomaly?: boolean;

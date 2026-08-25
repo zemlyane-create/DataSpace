@@ -3,7 +3,8 @@ import {
   ResearchCategory, 
   MonitoringStation, 
   MonitoringRecord, 
-  SpeciesCount 
+  SpeciesCount,
+  CustomMetric
 } from "../types";
 import { CATEGORIES } from "../data/mockData";
 import { 
@@ -31,7 +32,8 @@ import {
   Image as ImageIcon,
   FileText,
   RefreshCw,
-  Loader2
+  Loader2,
+  Edit3
 } from "lucide-react";
 import { analyzeSoilImage, SoilColorResult } from "../utils/soilColorAnalyzer";
 
@@ -40,6 +42,8 @@ interface DataEntryModalProps {
   onClose: () => void;
   stations: MonitoringStation[];
   onAddRecord: (newRecord: MonitoringRecord) => void;
+  onUpdateRecord?: (updatedRecord: MonitoringRecord) => void;
+  editingRecord?: MonitoringRecord | null;
   preselectedStation?: MonitoringStation | null;
   initialCategory?: ResearchCategory | null;
   clickedCoords?: { lat: number; lng: number } | null;
@@ -62,6 +66,8 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
   onClose,
   stations,
   onAddRecord,
+  onUpdateRecord,
+  editingRecord,
   preselectedStation,
   initialCategory,
   clickedCoords,
@@ -71,26 +77,38 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const [category, setCategory] = useState<ResearchCategory>(initialCategory || "hydrosphere");
+  const isEditing = Boolean(editingRecord);
 
-  useEffect(() => {
-    if (isOpen && initialCategory) {
-      setCategory(initialCategory);
-    }
-  }, [isOpen, initialCategory]);
+  const [category, setCategory] = useState<ResearchCategory>(
+    editingRecord?.category || initialCategory || "hydrosphere"
+  );
   const [stationMode, setStationMode] = useState<"preset" | "custom">("preset");
   const [selectedStationId, setSelectedStationId] = useState<string>(
     preselectedStation?.id || stations[0]?.id || ""
   );
 
   // Common Fields
-  const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
-  const [researcherName, setResearcherName] = useState("");
-  const [notes, setNotes] = useState("");
-  const [customLat, setCustomLat] = useState<number>(clickedCoords?.lat || 53.2167);
-  const [customLng, setCustomLng] = useState<number>(clickedCoords?.lng || 63.6333);
-  const [customStationName, setCustomStationName] = useState("с. Александровка — речной пост");
-  const [customStationCode, setCustomStationCode] = useState("ALX-01");
+  const [date, setDate] = useState<string>(
+    editingRecord?.date || new Date().toISOString().split("T")[0]
+  );
+  const [researcherName, setResearcherName] = useState(
+    editingRecord?.researcherName || ""
+  );
+  const [notes, setNotes] = useState(
+    editingRecord?.notes || ""
+  );
+  const [customLat, setCustomLat] = useState<number>(
+    editingRecord?.lat || clickedCoords?.lat || 53.2144
+  );
+  const [customLng, setCustomLng] = useState<number>(
+    editingRecord?.lng || clickedCoords?.lng || 63.6246
+  );
+  const [customStationName, setCustomStationName] = useState(
+    editingRecord?.stationName || "г. Костанай — новая точка"
+  );
+  const [customStationCode, setCustomStationCode] = useState(
+    editingRecord?.stationCode || `KST-${String(recordsCount + 1).padStart(2, "0")}`
+  );
   const [modalError, setModalError] = useState<string | null>(null);
 
   // Map of enabled/measured flags for every parameter (if false -> "нет замера")
@@ -153,28 +171,28 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
     setActiveParams(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Category-specific Values
+  // Category-specific Values (Initially blank strings/empty, to not constrain user or force 0)
   // Hydrosphere
-  const [waterTemp, setWaterTemp] = useState<number>(15);
-  const [transparency, setTransparency] = useState<number>(35);
-  const [ph, setPh] = useState<number>(7.2);
-  const [tds, setTds] = useState<number>(250);
-  const [ec, setEc] = useState<number>(380);
-  const [nitrates, setNitrates] = useState<number>(5.0);
-  const [dissolvedOxygen, setDissolvedOxygen] = useState<number>(8.5);
+  const [waterTemp, setWaterTemp] = useState<string>("");
+  const [transparency, setTransparency] = useState<string>("");
+  const [ph, setPh] = useState<string>("");
+  const [tds, setTds] = useState<string>("");
+  const [ec, setEc] = useState<string>("");
+  const [nitrates, setNitrates] = useState<string>("");
+  const [dissolvedOxygen, setDissolvedOxygen] = useState<string>("");
 
   // Atmosphere
-  const [airTemp, setAirTemp] = useState<number>(20);
-  const [humidity, setHumidity] = useState<number>(60);
-  const [pressure, setPressure] = useState<number>(750);
-  const [cloudiness, setCloudiness] = useState<number>(30);
-  const [windSpeed, setWindSpeed] = useState<number>(3.0);
+  const [airTemp, setAirTemp] = useState<string>("");
+  const [humidity, setHumidity] = useState<string>("");
+  const [pressure, setPressure] = useState<string>("");
+  const [cloudiness, setCloudiness] = useState<string>("");
+  const [windSpeed, setWindSpeed] = useState<string>("");
   const [windDirection, setWindDirection] = useState("СЗ");
-  const [precipitation, setPrecipitation] = useState<number>(0);
-  const [co2Ppm, setCo2Ppm] = useState<number>(420);
+  const [precipitation, setPrecipitation] = useState<string>("");
+  const [co2Ppm, setCo2Ppm] = useState<string>("");
 
   // Lithosphere (Pedosphere)
-  const [soilPh, setSoilPh] = useState<number>(6.5);
+  const [soilPh, setSoilPh] = useState<string>("");
   const [soilTexture, setSoilTexture] = useState("Суглинок средний");
   const [soilColor, setSoilColor] = useState("Темно-серый черноземный");
   const [soilColorRgb, setSoilColorRgb] = useState<{ r: number; g: number; b: number; hex: string } | null>({
@@ -188,41 +206,258 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
   const [isAnalyzingSoil, setIsAnalyzingSoil] = useState(false);
   const [soilAnalysisResult, setSoilAnalysisResult] = useState<SoilColorResult | null>(null);
   const [heavyMetals, setHeavyMetals] = useState("Низкий");
-  const [soilDensity, setSoilDensity] = useState<number>(1.25);
-  const [permeability, setPermeability] = useState<number>(45);
+  const [soilDensity, setSoilDensity] = useState<string>("");
+  const [permeability, setPermeability] = useState<string>("");
 
   // Biosphere
-  const [floraSpecies, setFloraSpecies] = useState("Ковыль волосатик, Полынь австрийская");
-  const [faunaSpecies, setFaunaSpecies] = useState("Степной лунь, Суслик");
-  const [speciesCounts, setSpeciesCounts] = useState<SpeciesCount[]>([
-    { speciesName: "Ковыль волосатик", count: 12 },
-    { speciesName: "Полынь австрийская", count: 8 },
-    { speciesName: "Шалфей степной", count: 5 }
-  ]);
+  const [floraSpecies, setFloraSpecies] = useState("");
+  const [faunaSpecies, setFaunaSpecies] = useState("");
+  const [speciesCounts, setSpeciesCounts] = useState<SpeciesCount[]>([]);
   const [bioPhotoUrl, setBioPhotoUrl] = useState("");
 
   // Anthropogenic
-  const [litterLevel, setLitterLevel] = useState<number>(2);
-  const [tramplingLevel, setTramplingLevel] = useState<number>(2);
-  const [firePitsCount, setFirePitsCount] = useState<number>(0);
+  const [litterLevel, setLitterLevel] = useState<string>("");
+  const [tramplingLevel, setTramplingLevel] = useState<string>("");
+  const [firePitsCount, setFirePitsCount] = useState<string>("");
   const [illegalDumps, setIllegalDumps] = useState<boolean>(false);
-  const [noiseLevel, setNoiseLevel] = useState<number>(45);
-  const [trafficIntensity, setTrafficIntensity] = useState<number>(20);
+  const [noiseLevel, setNoiseLevel] = useState<string>("");
+  const [trafficIntensity, setTrafficIntensity] = useState<string>("");
   const [antPhotoUrl, setAntPhotoUrl] = useState("");
 
   // Geology
-  const [mineralName, setMineralName] = useState("Кварц / Гранит");
+  const [mineralName, setMineralName] = useState("");
   const [geneticType, setGeneticType] = useState<"Осадочный" | "Магматический" | "Метаморфический">("Осадочный");
-  const [streakColor, setStreakColor] = useState("Белая");
-  const [mohsHardness, setMohsHardness] = useState<number>(6);
+  const [streakColor, setStreakColor] = useState("");
+  const [mohsHardness, setMohsHardness] = useState<string>("");
   const [minPhotoUrl, setMinPhotoUrl] = useState("");
 
   // Fossils
-  const [organismGroup, setOrganismGroup] = useState("Отпечаток древней флоры");
+  const [organismGroup, setOrganismGroup] = useState("");
   const [certaintyLevel, setCertaintyLevel] = useState<"До вида" | "До рода" | "До семейства" | "До отряда">("До рода");
-  const [lengthMm, setLengthMm] = useState<number>(55);
-  const [widthMm, setWidthMm] = useState<number>(42);
+  const [lengthMm, setLengthMm] = useState<string>("");
+  const [widthMm, setWidthMm] = useState<string>("");
   const [fosPhotoUrl, setFosPhotoUrl] = useState("");
+
+  // Custom User-Defined Metrics list
+  const [customMetrics, setCustomMetrics] = useState<CustomMetric[]>([]);
+  const [newMetricName, setNewMetricName] = useState("");
+  const [newMetricValue, setNewMetricValue] = useState("");
+  const [newMetricUnit, setNewMetricUnit] = useState("");
+
+  const handleAddCustomMetric = () => {
+    if (!newMetricName.trim()) return;
+    const newMetric: CustomMetric = {
+      id: `cm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: newMetricName.trim(),
+      value: newMetricValue.trim(),
+      unit: newMetricUnit.trim()
+    };
+    setCustomMetrics(prev => [...prev, newMetric]);
+    setNewMetricName("");
+    setNewMetricValue("");
+    setNewMetricUnit("");
+  };
+
+  const handleRemoveCustomMetric = (id: string) => {
+    setCustomMetrics(prev => prev.filter(m => m.id !== id));
+  };
+
+  const handleUpdateCustomMetric = (id: string, field: keyof CustomMetric, val: string) => {
+    setCustomMetrics(prev => prev.map(m => m.id === id ? { ...m, [field]: val } : m));
+  };
+
+  // Populate state on modal open / edit record change
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (editingRecord) {
+      setCategory(editingRecord.category);
+      setDate(editingRecord.date || new Date().toISOString().split("T")[0]);
+      setResearcherName(editingRecord.researcherName || "");
+      setNotes(editingRecord.notes || "");
+
+      // Match station
+      const matched = stations.find(s => s.code === editingRecord.stationCode);
+      if (matched) {
+        setStationMode("preset");
+        setSelectedStationId(matched.id);
+      } else {
+        setStationMode("custom");
+        setCustomStationCode(editingRecord.stationCode);
+        setCustomStationName(editingRecord.stationName);
+        setCustomLat(editingRecord.lat);
+        setCustomLng(editingRecord.lng);
+      }
+
+      // Hydrosphere
+      if (editingRecord.hydrosphere) {
+        const h = editingRecord.hydrosphere;
+        if (h.waterTemp !== undefined) setWaterTemp(String(h.waterTemp));
+        if (h.transparency !== undefined) setTransparency(String(h.transparency));
+        if (h.ph !== undefined) setPh(String(h.ph));
+        if (h.tds !== undefined) setTds(String(h.tds));
+        if (h.ec !== undefined) setEc(String(h.ec));
+        if (h.nitrates !== undefined) setNitrates(String(h.nitrates));
+        if (h.dissolvedOxygen !== undefined) setDissolvedOxygen(String(h.dissolvedOxygen));
+
+        setActiveParams(prev => ({
+          ...prev,
+          waterTemp: h.waterTemp !== undefined,
+          transparency: h.transparency !== undefined,
+          ph: h.ph !== undefined,
+          tds: h.tds !== undefined,
+          ec: h.ec !== undefined,
+          nitrates: h.nitrates !== undefined,
+          dissolvedOxygen: h.dissolvedOxygen !== undefined,
+        }));
+      }
+
+      // Atmosphere
+      if (editingRecord.atmosphere) {
+        const a = editingRecord.atmosphere;
+        if (a.airTemp !== undefined) setAirTemp(String(a.airTemp));
+        if (a.humidity !== undefined) setHumidity(String(a.humidity));
+        if (a.pressure !== undefined) setPressure(String(a.pressure));
+        if (a.cloudiness !== undefined) setCloudiness(String(a.cloudiness));
+        if (a.windSpeed !== undefined) setWindSpeed(String(a.windSpeed));
+        if (a.windDirection !== undefined) setWindDirection(a.windDirection);
+        if (a.precipitation !== undefined) setPrecipitation(String(a.precipitation));
+        if (a.co2Ppm !== undefined) setCo2Ppm(String(a.co2Ppm));
+
+        setActiveParams(prev => ({
+          ...prev,
+          airTemp: a.airTemp !== undefined,
+          humidity: a.humidity !== undefined,
+          pressure: a.pressure !== undefined,
+          cloudiness: a.cloudiness !== undefined,
+          windSpeed: a.windSpeed !== undefined,
+          windDirection: a.windDirection !== undefined,
+          precipitation: a.precipitation !== undefined,
+          co2Ppm: a.co2Ppm !== undefined,
+        }));
+      }
+
+      // Lithosphere
+      if (editingRecord.lithosphere) {
+        const l = editingRecord.lithosphere;
+        if (l.soilPh !== undefined) setSoilPh(String(l.soilPh));
+        if (l.texture !== undefined) setSoilTexture(l.texture);
+        if (l.soilColor !== undefined) setSoilColor(l.soilColor);
+        if (l.soilColorRgb !== undefined) setSoilColorRgb(l.soilColorRgb);
+        if (l.heavyMetals !== undefined) setHeavyMetals(l.heavyMetals);
+        if (l.density !== undefined) setSoilDensity(String(l.density));
+        if (l.permeability !== undefined) setPermeability(String(l.permeability));
+        if (l.photoUrl !== undefined) setSoilPhotoUrl(l.photoUrl);
+
+        setActiveParams(prev => ({
+          ...prev,
+          soilPh: l.soilPh !== undefined,
+          soilTexture: l.texture !== undefined,
+          soilColor: l.soilColor !== undefined,
+          heavyMetals: l.heavyMetals !== undefined,
+          soilDensity: l.density !== undefined,
+          permeability: l.permeability !== undefined,
+        }));
+      }
+
+      // Biosphere
+      if (editingRecord.biosphere) {
+        const b = editingRecord.biosphere;
+        if (b.floraSpecies !== undefined) setFloraSpecies(b.floraSpecies);
+        if (b.faunaSpecies !== undefined) setFaunaSpecies(b.faunaSpecies);
+        if (b.speciesCounts !== undefined) setSpeciesCounts(b.speciesCounts);
+        if (b.photoUrl !== undefined) setBioPhotoUrl(b.photoUrl);
+
+        setActiveParams(prev => ({
+          ...prev,
+          floraSpecies: b.floraSpecies !== undefined,
+          faunaSpecies: b.faunaSpecies !== undefined,
+          shannonIndex: b.shannonIndex !== undefined,
+        }));
+      }
+
+      // Anthropogenic
+      if (editingRecord.anthropogenic) {
+        const an = editingRecord.anthropogenic;
+        if (an.litterLevel !== undefined) setLitterLevel(String(an.litterLevel));
+        if (an.tramplingLevel !== undefined) setTramplingLevel(String(an.tramplingLevel));
+        if (an.firePitsCount !== undefined) setFirePitsCount(String(an.firePitsCount));
+        if (an.illegalDumps !== undefined) setIllegalDumps(an.illegalDumps);
+        if (an.noiseLevel !== undefined) setNoiseLevel(String(an.noiseLevel));
+        if (an.trafficIntensity !== undefined) setTrafficIntensity(String(an.trafficIntensity));
+        if (an.photoUrl !== undefined) setAntPhotoUrl(an.photoUrl);
+
+        setActiveParams(prev => ({
+          ...prev,
+          litterLevel: an.litterLevel !== undefined,
+          tramplingLevel: an.tramplingLevel !== undefined,
+          firePitsCount: an.firePitsCount !== undefined,
+          noiseLevel: an.noiseLevel !== undefined,
+          trafficIntensity: an.trafficIntensity !== undefined,
+        }));
+      }
+
+      // Geology
+      if (editingRecord.geology) {
+        const g = editingRecord.geology;
+        if (g.mineralName !== undefined) setMineralName(g.mineralName);
+        if (g.geneticType !== undefined) setGeneticType(g.geneticType);
+        if (g.streakColor !== undefined) setStreakColor(g.streakColor);
+        if (g.mohsHardness !== undefined) setMohsHardness(String(g.mohsHardness));
+        if (g.photoUrl !== undefined) setMinPhotoUrl(g.photoUrl);
+
+        setActiveParams(prev => ({
+          ...prev,
+          mineralName: g.mineralName !== undefined,
+          geneticType: g.geneticType !== undefined,
+          streakColor: g.streakColor !== undefined,
+          mohsHardness: g.mohsHardness !== undefined,
+        }));
+      }
+
+      // Fossils
+      if (editingRecord.fossils) {
+        const f = editingRecord.fossils;
+        if (f.organismGroup !== undefined) setOrganismGroup(f.organismGroup);
+        if (f.certaintyLevel !== undefined) setCertaintyLevel(f.certaintyLevel);
+        if (f.lengthMm !== undefined) setLengthMm(String(f.lengthMm));
+        if (f.widthMm !== undefined) setWidthMm(String(f.widthMm));
+        if (f.photoUrl !== undefined) setFosPhotoUrl(f.photoUrl);
+
+        setActiveParams(prev => ({
+          ...prev,
+          organismGroup: f.organismGroup !== undefined,
+          lengthMm: f.lengthMm !== undefined,
+          widthMm: f.widthMm !== undefined,
+        }));
+      }
+
+      // Custom attributes / metrics
+      if (editingRecord.customAttributes) {
+        if (Array.isArray(editingRecord.customAttributes)) {
+          setCustomMetrics(editingRecord.customAttributes);
+        } else if (typeof editingRecord.customAttributes === "object") {
+          setCustomMetrics(Object.values(editingRecord.customAttributes));
+        }
+      } else {
+        setCustomMetrics([]);
+      }
+    } else {
+      if (initialCategory) {
+        setCategory(initialCategory);
+      }
+      if (preselectedStation) {
+        setStationMode("preset");
+        setSelectedStationId(preselectedStation.id);
+      } else if (clickedCoords) {
+        setStationMode("custom");
+        setCustomLat(clickedCoords.lat);
+        setCustomLng(clickedCoords.lng);
+        setCustomStationName("Пользовательская точка на карте");
+        setCustomStationCode(`KST-${String(recordsCount + 1).padStart(2, "0")}`);
+      }
+    }
+  }, [isOpen, editingRecord, initialCategory, preselectedStation, clickedCoords, recordsCount, stations]);
 
   // Soil Color Analysis via Canvas API
   const handleSoilPhotoUploadAndAnalyze = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -274,11 +509,11 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
   const presetStation = stations.find(s => s.id === selectedStationId) || stations[0];
   const stationCode = stationMode === "preset" && presetStation
     ? presetStation.code
-    : (customStationCode.trim() || `ALX-${recordsCount + 1}`);
+    : (customStationCode.trim() || `KST-${String(recordsCount + 1).padStart(2, "0")}`);
 
   const stationName = stationMode === "preset" && presetStation
     ? presetStation.name
-    : customStationName;
+    : (customStationName.trim() || "Пользовательская точка на карте");
 
   const activeLat = stationMode === "preset" && presetStation ? presetStation.lat : customLat;
   const activeLng = stationMode === "preset" && presetStation ? presetStation.lng : customLng;
@@ -295,8 +530,10 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
 
     setModalError(null);
 
+    const targetId = editingRecord ? editingRecord.id : `rec-${Date.now()}`;
+
     const newRec: MonitoringRecord = {
-      id: `rec-${Date.now()}`,
+      id: targetId,
       stationCode,
       stationName,
       category,
@@ -304,40 +541,50 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
       lat: Number(activeLat),
       lng: Number(activeLng),
       researcherName: researcherName.trim() || "Юный исследователь",
-      notes: notes.trim()
+      notes: notes.trim(),
+      ...(editingRecord ? {
+        syncStatus: editingRecord.syncStatus,
+        isOfflinePending: editingRecord.isOfflinePending
+      } : {})
+    };
+
+    const parseNum = (val: string): number | undefined => {
+      if (val === "" || val === null || val === undefined || isNaN(Number(val))) return undefined;
+      return Number(val);
     };
 
     if (category === "hydrosphere") {
       newRec.hydrosphere = {
-        waterTemp: activeParams.waterTemp ? Number(waterTemp) : undefined,
-        transparency: activeParams.transparency ? Number(transparency) : undefined,
-        ph: activeParams.ph ? Number(ph) : undefined,
-        tds: activeParams.tds ? Number(tds) : undefined,
-        ec: activeParams.ec ? Number(ec) : undefined,
-        nitrates: activeParams.nitrates ? Number(nitrates) : undefined,
-        dissolvedOxygen: activeParams.dissolvedOxygen ? Number(dissolvedOxygen) : undefined,
+        waterTemp: activeParams.waterTemp ? parseNum(waterTemp) : undefined,
+        transparency: activeParams.transparency ? parseNum(transparency) : undefined,
+        ph: activeParams.ph ? parseNum(ph) : undefined,
+        tds: activeParams.tds ? parseNum(tds) : undefined,
+        ec: activeParams.ec ? parseNum(ec) : undefined,
+        nitrates: activeParams.nitrates ? parseNum(nitrates) : undefined,
+        dissolvedOxygen: activeParams.dissolvedOxygen ? parseNum(dissolvedOxygen) : undefined,
       };
     } else if (category === "atmosphere") {
+      const co2Val = parseNum(co2Ppm);
       newRec.atmosphere = {
-        airTemp: activeParams.airTemp ? Number(airTemp) : undefined,
-        humidity: activeParams.humidity ? Number(humidity) : undefined,
-        pressure: activeParams.pressure ? Number(pressure) : undefined,
-        cloudiness: activeParams.cloudiness ? Number(cloudiness) : undefined,
-        windSpeed: activeParams.windSpeed ? Number(windSpeed) : undefined,
+        airTemp: activeParams.airTemp ? parseNum(airTemp) : undefined,
+        humidity: activeParams.humidity ? parseNum(humidity) : undefined,
+        pressure: activeParams.pressure ? parseNum(pressure) : undefined,
+        cloudiness: activeParams.cloudiness ? parseNum(cloudiness) : undefined,
+        windSpeed: activeParams.windSpeed ? parseNum(windSpeed) : undefined,
         windDirection: activeParams.windDirection ? windDirection : undefined,
-        precipitation: activeParams.precipitation ? Number(precipitation) : undefined,
-        co2Ppm: activeParams.co2Ppm ? Number(co2Ppm) : undefined,
-        co2Percent: activeParams.co2Ppm ? convertPpmToPercent(co2Ppm) : undefined
+        precipitation: activeParams.precipitation ? parseNum(precipitation) : undefined,
+        co2Ppm: activeParams.co2Ppm ? co2Val : undefined,
+        co2Percent: activeParams.co2Ppm && co2Val !== undefined ? convertPpmToPercent(co2Val) : undefined
       };
     } else if (category === "lithosphere") {
       newRec.lithosphere = {
-        soilPh: activeParams.soilPh ? Number(soilPh) : undefined,
+        soilPh: activeParams.soilPh ? parseNum(soilPh) : undefined,
         texture: activeParams.soilTexture ? soilTexture : undefined,
         soilColor: activeParams.soilColor ? soilColor : undefined,
         soilColorRgb: soilColorRgb || undefined,
         heavyMetals: activeParams.heavyMetals ? heavyMetals : undefined,
-        density: activeParams.soilDensity ? Number(soilDensity) : undefined,
-        permeability: activeParams.permeability ? Number(permeability) : undefined,
+        density: activeParams.soilDensity ? parseNum(soilDensity) : undefined,
+        permeability: activeParams.permeability ? parseNum(permeability) : undefined,
         photoUrl: soilPhotoUrl || undefined
       };
     } else if (category === "biosphere") {
@@ -350,12 +597,12 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
       };
     } else if (category === "anthropogenic") {
       newRec.anthropogenic = {
-        litterLevel: activeParams.litterLevel ? Number(litterLevel) : undefined,
-        tramplingLevel: activeParams.tramplingLevel ? Number(tramplingLevel) : undefined,
-        firePitsCount: activeParams.firePitsCount ? Number(firePitsCount) : undefined,
+        litterLevel: activeParams.litterLevel ? parseNum(litterLevel) : undefined,
+        tramplingLevel: activeParams.tramplingLevel ? parseNum(tramplingLevel) : undefined,
+        firePitsCount: activeParams.firePitsCount ? parseNum(firePitsCount) : undefined,
         illegalDumps,
-        noiseLevel: activeParams.noiseLevel ? Number(noiseLevel) : undefined,
-        trafficIntensity: activeParams.trafficIntensity ? Number(trafficIntensity) : undefined,
+        noiseLevel: activeParams.noiseLevel ? parseNum(noiseLevel) : undefined,
+        trafficIntensity: activeParams.trafficIntensity ? parseNum(trafficIntensity) : undefined,
         photoUrl: antPhotoUrl || undefined
       };
     } else if (category === "geology") {
@@ -363,17 +610,21 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
         mineralName: activeParams.mineralName ? mineralName : undefined,
         geneticType: activeParams.geneticType ? geneticType : undefined,
         streakColor: activeParams.streakColor ? streakColor : undefined,
-        mohsHardness: activeParams.mohsHardness ? Number(mohsHardness) : undefined,
+        mohsHardness: activeParams.mohsHardness ? parseNum(mohsHardness) : undefined,
         photoUrl: minPhotoUrl || undefined
       };
     } else if (category === "fossils") {
       newRec.fossils = {
         organismGroup: activeParams.organismGroup ? organismGroup : undefined,
         certaintyLevel,
-        lengthMm: activeParams.lengthMm ? Number(lengthMm) : undefined,
-        widthMm: activeParams.widthMm ? Number(widthMm) : undefined,
+        lengthMm: activeParams.lengthMm ? parseNum(lengthMm) : undefined,
+        widthMm: activeParams.widthMm ? parseNum(widthMm) : undefined,
         photoUrl: fosPhotoUrl || undefined
       };
+    }
+
+    if (customMetrics.length > 0) {
+      newRec.customAttributes = customMetrics;
     }
 
     const { isAnomaly, alerts } = checkRecordAnomalies(newRec);
@@ -382,7 +633,11 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
       newRec.aiAlert = alerts.join(" ");
     }
 
-    onAddRecord(newRec);
+    if (editingRecord && onUpdateRecord) {
+      onUpdateRecord(newRec);
+    } else {
+      onAddRecord(newRec);
+    }
     onClose();
   };
 
@@ -399,14 +654,20 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
         </button>
 
         {/* Title */}
-        <div className="flex items-center space-x-2 text-emerald-400 mb-1">
-          <Plus className="w-6 h-6" />
+        <div className="flex items-center space-x-2 mb-1">
+          {isEditing ? (
+            <Edit3 className="w-6 h-6 text-amber-400" />
+          ) : (
+            <Plus className="w-6 h-6 text-emerald-400" />
+          )}
           <h2 className="text-lg sm:text-2xl font-bold text-white font-serif">
-            Внесение замера в полевой журнал
+            {isEditing ? "Редактирование полевого замера" : "Внесение замера в полевой журнал"}
           </h2>
         </div>
         <p className="text-xs text-emerald-300/80 mb-4">
-          Эко-клуб «Земляне» • Форма академического эко-мониторинга
+          {isEditing 
+            ? `Эко-клуб «Земляне» • Изменение станции, категории, даты и ключевых показателей [${stationCode}]`
+            : "Эко-клуб «Земляне» • Форма академического эко-мониторинга"}
         </p>
 
         {typeof navigator !== "undefined" && !navigator.onLine && (
@@ -593,7 +854,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
             <div className="bg-[#13261f]/90 border border-blue-800/60 rounded-2xl p-4 space-y-4">
               <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center">
                 <Sliders className="w-4 h-4 mr-1" />
-                Параметры гидросферы:
+                Параметры гидросферы (числовой ввод без ограничений):
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -602,32 +863,23 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 <div className="p-3 bg-[#0b1512] rounded-xl border border-emerald-900/60">
                   <div className="flex justify-between items-center text-xs mb-1">
                     <span className="font-semibold text-slate-200">Температура воды (°C):</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleParam("waterTemp")}
-                      className={`text-[10px] px-2 py-0.5 rounded font-bold transition ${
-                        activeParams.waterTemp
-                          ? "bg-emerald-700 text-white"
-                          : "bg-slate-800 text-amber-300 border border-amber-500/40"
-                      }`}
-                    >
-                      {activeParams.waterTemp ? `${waterTemp} °C` : "Замер сделан"}
-                    </button>
+                    {activeParams.waterTemp && waterTemp !== "" && (
+                      <span className="text-emerald-300 font-bold text-[11px]">{waterTemp} °C</span>
+                    )}
                   </div>
                   {activeParams.waterTemp ? (
                     <input
-                      type="range"
-                      min="-2"
-                      max="35"
-                      step="0.1"
+                      type="number"
+                      step="any"
+                      placeholder="Введите температуру..."
                       value={waterTemp}
-                      onChange={(e) => setWaterTemp(Number(e.target.value))}
-                      className="w-full accent-emerald-500 my-1"
+                      onChange={(e) => setWaterTemp(e.target.value)}
+                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500"
                     />
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
                   )}
-                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-1">
+                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                     <input
                       type="checkbox"
                       checked={!activeParams.waterTemp}
@@ -641,33 +893,24 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 {/* Transparency */}
                 <div className="p-3 bg-[#0b1512] rounded-xl border border-emerald-900/60">
                   <div className="flex justify-between items-center text-xs mb-1">
-                    <span className="font-semibold text-slate-200">Прозрачность (см):</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleParam("transparency")}
-                      className={`text-[10px] px-2 py-0.5 rounded font-bold transition ${
-                        activeParams.transparency
-                          ? "bg-emerald-700 text-white"
-                          : "bg-slate-800 text-amber-300 border border-amber-500/40"
-                      }`}
-                    >
-                      {activeParams.transparency ? `${transparency} см` : "Замер сделан"}
-                    </button>
+                    <span className="font-semibold text-slate-200">Прозрачность по диску Секки (см):</span>
+                    {activeParams.transparency && transparency !== "" && (
+                      <span className="text-emerald-300 font-bold text-[11px]">{transparency} см</span>
+                    )}
                   </div>
                   {activeParams.transparency ? (
                     <input
-                      type="range"
-                      min="1"
-                      max="100"
-                      step="1"
+                      type="number"
+                      step="any"
+                      placeholder="Введите глубину видимости..."
                       value={transparency}
-                      onChange={(e) => setTransparency(Number(e.target.value))}
-                      className="w-full accent-emerald-500 my-1"
+                      onChange={(e) => setTransparency(e.target.value)}
+                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500"
                     />
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
                   )}
-                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-1">
+                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                     <input
                       type="checkbox"
                       checked={!activeParams.transparency}
@@ -681,33 +924,24 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 {/* pH */}
                 <div className="p-3 bg-[#0b1512] rounded-xl border border-emerald-900/60">
                   <div className="flex justify-between items-center text-xs mb-1">
-                    <span className="font-semibold text-slate-200">Кислотность (pH):</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleParam("ph")}
-                      className={`text-[10px] px-2 py-0.5 rounded font-bold transition ${
-                        activeParams.ph
-                          ? "bg-emerald-700 text-white"
-                          : "bg-slate-800 text-amber-300 border border-amber-500/40"
-                      }`}
-                    >
-                      {activeParams.ph ? `${ph} pH` : "Замер сделан"}
-                    </button>
+                    <span className="font-semibold text-slate-200">Водородный показатель (pH):</span>
+                    {activeParams.ph && ph !== "" && (
+                      <span className="text-emerald-300 font-bold text-[11px]">{ph} pH</span>
+                    )}
                   </div>
                   {activeParams.ph ? (
                     <input
-                      type="range"
-                      min="0"
-                      max="14"
-                      step="0.1"
+                      type="number"
+                      step="any"
+                      placeholder="Введите значение pH..."
                       value={ph}
-                      onChange={(e) => setPh(Number(e.target.value))}
-                      className="w-full accent-emerald-500 my-1"
+                      onChange={(e) => setPh(e.target.value)}
+                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500"
                     />
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
                   )}
-                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-1">
+                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                     <input
                       type="checkbox"
                       checked={!activeParams.ph}
@@ -721,19 +955,24 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 {/* TDS */}
                 <div className="p-3 bg-[#0b1512] rounded-xl border border-emerald-900/60">
                   <div className="flex justify-between items-center text-xs mb-1">
-                    <span className="font-semibold text-slate-200">Минерализация TDS (мг/л):</span>
+                    <span className="font-semibold text-slate-200">Минерализация TDS (мг/л / ppm):</span>
+                    {activeParams.tds && tds !== "" && (
+                      <span className="text-emerald-300 font-bold text-[11px]">{tds} мг/л</span>
+                    )}
                   </div>
                   {activeParams.tds ? (
                     <input
                       type="number"
+                      step="any"
+                      placeholder="Введите солесодержание..."
                       value={tds}
-                      onChange={(e) => setTds(Number(e.target.value))}
-                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs"
+                      onChange={(e) => setTds(e.target.value)}
+                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500"
                     />
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
                   )}
-                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-1">
+                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                     <input
                       type="checkbox"
                       checked={!activeParams.tds}
@@ -761,22 +1000,23 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 <div className="p-3 bg-[#0b1512] rounded-xl border border-emerald-900/60">
                   <div className="flex justify-between items-center text-xs mb-1">
                     <span className="font-semibold text-slate-200">Температура воздуха (°C):</span>
-                    <span className="text-amber-300 font-bold">{airTemp} °C</span>
+                    {activeParams.airTemp && airTemp !== "" && (
+                      <span className="text-amber-300 font-bold text-[11px]">{airTemp} °C</span>
+                    )}
                   </div>
                   {activeParams.airTemp ? (
                     <input
-                      type="range"
-                      min="-35"
-                      max="45"
-                      step="0.5"
+                      type="number"
+                      step="any"
+                      placeholder="Введите температуру..."
                       value={airTemp}
-                      onChange={(e) => setAirTemp(Number(e.target.value))}
-                      className="w-full accent-amber-500 my-1"
+                      onChange={(e) => setAirTemp(e.target.value)}
+                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-amber-500"
                     />
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
                   )}
-                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-1">
+                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                     <input
                       type="checkbox"
                       checked={!activeParams.airTemp}
@@ -790,23 +1030,24 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 {/* Humidity */}
                 <div className="p-3 bg-[#0b1512] rounded-xl border border-emerald-900/60">
                   <div className="flex justify-between items-center text-xs mb-1">
-                    <span className="font-semibold text-slate-200">Влажность (%):</span>
-                    <span className="text-sky-300 font-bold">{humidity} %</span>
+                    <span className="font-semibold text-slate-200">Относительная влажность (%):</span>
+                    {activeParams.humidity && humidity !== "" && (
+                      <span className="text-sky-300 font-bold text-[11px]">{humidity} %</span>
+                    )}
                   </div>
                   {activeParams.humidity ? (
                     <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="1"
+                      type="number"
+                      step="any"
+                      placeholder="Введите влажность..."
                       value={humidity}
-                      onChange={(e) => setHumidity(Number(e.target.value))}
-                      className="w-full accent-sky-500 my-1"
+                      onChange={(e) => setHumidity(e.target.value)}
+                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-sky-500"
                     />
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
                   )}
-                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-1">
+                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                     <input
                       type="checkbox"
                       checked={!activeParams.humidity}
@@ -821,23 +1062,25 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 <div className="p-3 bg-[#0b1512] rounded-xl border border-emerald-900/60 sm:col-span-2">
                   <div className="flex justify-between items-center text-xs mb-1">
                     <span className="font-semibold text-emerald-400">Содержание CO2 (PPM):</span>
-                    {activeParams.co2Ppm && (
-                      <span className="font-mono text-emerald-300 font-bold">
-                        {co2Ppm} ppm = {convertPpmToPercent(co2Ppm)}%
+                    {activeParams.co2Ppm && co2Ppm !== "" && !isNaN(Number(co2Ppm)) && (
+                      <span className="font-mono text-emerald-300 font-bold text-[11px]">
+                        {co2Ppm} ppm = {convertPpmToPercent(Number(co2Ppm))}%
                       </span>
                     )}
                   </div>
                   {activeParams.co2Ppm ? (
                     <input
                       type="number"
+                      step="any"
+                      placeholder="Введите концентрацию CO2 в ppm (напр. 415)..."
                       value={co2Ppm}
-                      onChange={(e) => setCo2Ppm(Number(e.target.value))}
-                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs"
+                      onChange={(e) => setCo2Ppm(e.target.value)}
+                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500"
                     />
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
                   )}
-                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-1">
+                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                     <input
                       type="checkbox"
                       checked={!activeParams.co2Ppm}
@@ -864,7 +1107,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 </span>
               </div>
 
-              {/* SOIL COLOR MODULE: TWO INDEPENDENT MODES */}
+              {/* SOIL COLOR MODULE */}
               <div className="p-3.5 bg-[#0b1512] rounded-xl border border-amber-700/60 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-900/40 pb-2">
                   <div className="flex items-center space-x-1.5">
@@ -1070,23 +1313,24 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 {/* Soil pH */}
                 <div className="p-3 bg-[#0b1512] rounded-xl border border-emerald-900/60">
                   <div className="flex justify-between text-xs text-slate-200 mb-1">
-                    <span>Кислотность почвы (pH):</span>
-                    <strong className="text-amber-400">{soilPh} рН</strong>
+                    <span>Кислотность почвы (pH водной вытяжки):</span>
+                    {activeParams.soilPh && soilPh !== "" && (
+                      <strong className="text-amber-400 text-[11px]">{soilPh} рН</strong>
+                    )}
                   </div>
                   {activeParams.soilPh ? (
                     <input
-                      type="range"
-                      min="3"
-                      max="10"
-                      step="0.1"
+                      type="number"
+                      step="any"
+                      placeholder="Введите pH почвы..."
                       value={soilPh}
-                      onChange={(e) => setSoilPh(Number(e.target.value))}
-                      className="w-full accent-amber-500 my-1"
+                      onChange={(e) => setSoilPh(e.target.value)}
+                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-amber-500"
                     />
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
                   )}
-                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-1">
+                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                     <input
                       type="checkbox"
                       checked={!activeParams.soilPh}
@@ -1115,7 +1359,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
                   )}
-                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-1">
+                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                     <input
                       type="checkbox"
                       checked={!activeParams.soilTexture}
@@ -1183,6 +1427,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                   {activeParams.floraSpecies ? (
                     <input
                       type="text"
+                      placeholder="Например: Ковыль, Полынь..."
                       value={floraSpecies}
                       onChange={(e) => setFloraSpecies(e.target.value)}
                       className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl"
@@ -1190,7 +1435,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
                   )}
-                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-1">
+                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                     <input
                       type="checkbox"
                       checked={!activeParams.floraSpecies}
@@ -1206,6 +1451,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                   {activeParams.faunaSpecies ? (
                     <input
                       type="text"
+                      placeholder="Например: Суслик, Лунь..."
                       value={faunaSpecies}
                       onChange={(e) => setFaunaSpecies(e.target.value)}
                       className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl"
@@ -1213,7 +1459,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
                   )}
-                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-1">
+                  <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                     <input
                       type="checkbox"
                       checked={!activeParams.faunaSpecies}
@@ -1316,25 +1562,28 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                   <div className="flex justify-between text-xs text-slate-200 mb-1">
                     <span className="font-bold text-orange-300 flex items-center">
                       <HelpCircle className="w-3.5 h-3.5 mr-1 text-amber-400" />
-                      Замусоренность (1-5):
+                      Замусоренность (1-5 баллов):
                     </span>
-                    <strong className="text-orange-400">{litterLevel} балл</strong>
+                    {activeParams.litterLevel && litterLevel !== "" && (
+                      <strong className="text-orange-400 text-[11px]">{litterLevel} балл</strong>
+                    )}
                   </div>
 
                   {activeParams.litterLevel ? (
                     <>
                       <input
-                        type="range"
-                        min="1"
-                        max="5"
-                        step="1"
+                        type="number"
+                        step="any"
+                        placeholder="Введите балл замусоренности (1-5)..."
                         value={litterLevel}
-                        onChange={(e) => setLitterLevel(Number(e.target.value))}
-                        className="w-full accent-orange-500 my-2"
+                        onChange={(e) => setLitterLevel(e.target.value)}
+                        className="w-full bg-[#13261f] border border-orange-900/80 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-orange-500"
                       />
-                      <div className="p-2 bg-[#13261f] rounded-lg text-xs font-medium text-amber-200 border border-orange-900/60">
-                        {LITTER_DESCRIPTIONS[litterLevel]}
-                      </div>
+                      {litterLevel !== "" && LITTER_DESCRIPTIONS[Number(litterLevel)] && (
+                        <div className="p-2 bg-[#13261f] rounded-lg text-xs font-medium text-amber-200 border border-orange-900/60 mt-1.5">
+                          {LITTER_DESCRIPTIONS[Number(litterLevel)]}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
@@ -1354,18 +1603,19 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 <div className="p-3 bg-[#0b1512] rounded-xl border border-orange-900/60">
                   <div className="flex justify-between text-xs text-slate-200 mb-1">
                     <span>Шумовое загрязнение (дБА):</span>
-                    <strong className="text-orange-400">{noiseLevel} дБА</strong>
+                    {activeParams.noiseLevel && noiseLevel !== "" && (
+                      <strong className="text-orange-400 text-[11px]">{noiseLevel} дБА</strong>
+                    )}
                   </div>
 
                   {activeParams.noiseLevel ? (
                     <input
-                      type="range"
-                      min="30"
-                      max="100"
-                      step="1"
+                      type="number"
+                      step="any"
+                      placeholder="Введите уровень шума..."
                       value={noiseLevel}
-                      onChange={(e) => setNoiseLevel(Number(e.target.value))}
-                      className="w-full accent-orange-500 my-2"
+                      onChange={(e) => setNoiseLevel(e.target.value)}
+                      className="w-full bg-[#13261f] border border-orange-900/80 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-orange-500"
                     />
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
@@ -1436,6 +1686,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                   {activeParams.mineralName ? (
                     <input
                       type="text"
+                      placeholder="Например: Кварц, Кальцит..."
                       value={mineralName}
                       onChange={(e) => setMineralName(e.target.value)}
                       className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl"
@@ -1455,16 +1706,20 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 </div>
 
                 <div className="p-3 bg-[#0b1512] rounded-xl border border-purple-900/60">
-                  <label className="block text-slate-300 mb-1 font-semibold">Твёрдость по Моосу (1-10):</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-slate-300 font-semibold">Твёрдость по шкале Мооса:</label>
+                    {activeParams.mohsHardness && mohsHardness !== "" && (
+                      <span className="text-purple-300 font-bold text-[11px]">{mohsHardness}</span>
+                    )}
+                  </div>
                   {activeParams.mohsHardness ? (
                     <input
                       type="number"
-                      min="1"
-                      max="10"
-                      step="0.5"
+                      step="any"
+                      placeholder="Введите твёрдость (напр. 6.5)..."
                       value={mohsHardness}
-                      onChange={(e) => setMohsHardness(Number(e.target.value))}
-                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl"
+                      onChange={(e) => setMohsHardness(e.target.value)}
+                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-purple-500"
                     />
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
@@ -1559,6 +1814,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                   {activeParams.organismGroup ? (
                     <input
                       type="text"
+                      placeholder="Например: Аммонит, Отпечаток листа..."
                       value={organismGroup}
                       onChange={(e) => setOrganismGroup(e.target.value)}
                       className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl"
@@ -1578,13 +1834,20 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
                 </div>
 
                 <div className="p-3 bg-[#0b1512] rounded-xl border border-amber-900/60">
-                  <label className="block text-slate-300 mb-1 font-semibold">Длина образца (мм):</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-slate-300 font-semibold">Длина образца (мм):</label>
+                    {activeParams.lengthMm && lengthMm !== "" && (
+                      <span className="text-amber-300 font-bold text-[11px]">{lengthMm} мм</span>
+                    )}
+                  </div>
                   {activeParams.lengthMm ? (
                     <input
                       type="number"
+                      step="any"
+                      placeholder="Введите длину..."
                       value={lengthMm}
-                      onChange={(e) => setLengthMm(Number(e.target.value))}
-                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl"
+                      onChange={(e) => setLengthMm(e.target.value)}
+                      className="w-full bg-[#13261f] border border-emerald-800 text-slate-100 p-2 rounded-xl text-xs focus:ring-2 focus:ring-amber-500"
                     />
                   ) : (
                     <div className="text-xs text-slate-400 italic py-1">Статус: нет замера</div>
@@ -1640,6 +1903,119 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
             </div>
           )}
 
+          {/* 5. CUSTOM USER-DEFINED METRICS BLOCK */}
+          <div className="bg-[#13261f]/90 border border-teal-700/70 rounded-2xl p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-teal-800/50 pb-2">
+              <div className="flex items-center space-x-2">
+                <div className="p-1.5 bg-teal-500/20 rounded-lg text-teal-300 border border-teal-500/40">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-teal-300 uppercase tracking-wider">
+                    Пользовательские параметры замера
+                  </h4>
+                  <p className="text-[11px] text-slate-300">
+                    Добавьте любые специфические или новые параметры (радиация, микропластик, хлорофилл и др.)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* List of active custom metrics */}
+            {customMetrics.length > 0 && (
+              <div className="space-y-2 pt-1">
+                {customMetrics.map((cm) => (
+                  <div
+                    key={cm.id}
+                    className="p-2.5 bg-[#0b1512] rounded-xl border border-teal-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+                      <div>
+                        <span className="block text-[10px] text-teal-400 font-semibold mb-0.5">Параметр:</span>
+                        <input
+                          type="text"
+                          value={cm.name}
+                          onChange={(e) => handleUpdateCustomMetric(cm.id, "name", e.target.value)}
+                          className="w-full bg-[#13261f] border border-teal-700 text-slate-100 px-2 py-1 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <span className="block text-[10px] text-teal-400 font-semibold mb-0.5">Значение:</span>
+                        <input
+                          type="text"
+                          value={String(cm.value)}
+                          onChange={(e) => handleUpdateCustomMetric(cm.id, "value", e.target.value)}
+                          className="w-full bg-[#13261f] border border-teal-700 text-slate-100 px-2 py-1 rounded-lg text-xs font-mono font-bold text-amber-300"
+                        />
+                      </div>
+                      <div>
+                        <span className="block text-[10px] text-teal-400 font-semibold mb-0.5">Ед. изм.:</span>
+                        <input
+                          type="text"
+                          value={cm.unit}
+                          placeholder="мкЗв/ч, мг/дм³, шт..."
+                          onChange={(e) => handleUpdateCustomMetric(cm.id, "unit", e.target.value)}
+                          className="w-full bg-[#13261f] border border-teal-700 text-slate-100 px-2 py-1 rounded-lg text-xs"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCustomMetric(cm.id)}
+                      title="Удалить параметр"
+                      className="self-end sm:self-center p-1.5 bg-rose-950/60 hover:bg-rose-900 border border-rose-800/60 text-rose-300 rounded-lg transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Form to add a new custom metric */}
+            <div className="p-3 bg-[#0b1512] rounded-xl border border-teal-800/40 space-y-2">
+              <span className="text-[11px] font-bold text-teal-200 block">
+                + Добавить новое поле замера:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                <input
+                  type="text"
+                  placeholder="Название (напр. Радиационный фон)"
+                  value={newMetricName}
+                  onChange={(e) => setNewMetricName(e.target.value)}
+                  className="sm:col-span-5 bg-[#13261f] border border-emerald-800 text-slate-100 px-2.5 py-1.5 rounded-xl text-xs focus:ring-2 focus:ring-teal-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Значение (напр. 0.12)"
+                  value={newMetricValue}
+                  onChange={(e) => setNewMetricValue(e.target.value)}
+                  className="sm:col-span-3 bg-[#13261f] border border-emerald-800 text-slate-100 px-2.5 py-1.5 rounded-xl text-xs focus:ring-2 focus:ring-teal-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Ед. (мкЗв/ч)"
+                  value={newMetricUnit}
+                  onChange={(e) => setNewMetricUnit(e.target.value)}
+                  className="sm:col-span-2 bg-[#13261f] border border-emerald-800 text-slate-100 px-2.5 py-1.5 rounded-xl text-xs focus:ring-2 focus:ring-teal-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCustomMetric}
+                  disabled={!newMetricName.trim()}
+                  className={`sm:col-span-2 py-1.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 ${
+                    newMetricName.trim()
+                      ? "bg-teal-600 hover:bg-teal-500 text-white shadow-md cursor-pointer active:scale-95"
+                      : "bg-slate-800 text-slate-500 cursor-not-allowed"
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Добавить</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Notes */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1">Полевые примечания и условия:</label>
@@ -1663,10 +2039,23 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs shadow-lg transition flex items-center space-x-1.5"
+              className={`px-5 py-2 rounded-xl font-bold text-xs shadow-lg transition flex items-center space-x-1.5 active:scale-95 ${
+                isEditing
+                  ? "bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-950/40"
+                  : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40"
+              }`}
             >
-              <Plus className="w-4 h-4" />
-              <span>Сохранить замер в журнал</span>
+              {isEditing ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                  <span>Сохранить изменения</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>Сохранить замер в журнал</span>
+                </>
+              )}
             </button>
           </div>
 

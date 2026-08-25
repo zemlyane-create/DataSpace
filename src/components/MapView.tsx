@@ -13,7 +13,8 @@ import {
   Check, 
   X,
   Compass,
-  RotateCcw
+  RotateCcw,
+  QrCode
 } from "lucide-react";
 
 interface MapViewProps {
@@ -28,6 +29,7 @@ interface MapViewProps {
   onClearClickedCoords?: () => void;
   onOpenDataEntryForStation?: (station: MonitoringStation) => void;
   onOpenDataEntryWithCoords?: (coords: { lat: number; lng: number }) => void;
+  onOpenPassportModal?: (station: MonitoringStation) => void;
   canCreateRecords?: boolean;
 }
 
@@ -145,6 +147,7 @@ export const MapView: React.FC<MapViewProps> = ({
   onClearClickedCoords,
   onOpenDataEntryForStation,
   onOpenDataEntryWithCoords,
+  onOpenPassportModal,
   canCreateRecords = false
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -769,45 +772,6 @@ export const MapView: React.FC<MapViewProps> = ({
             className="w-full h-[450px] sm:h-[480px] lg:h-[500px] z-10 bg-[#09120e]"
           />
 
-          {/* Temporary Point Floating Dismiss Bar */}
-          {clickedCoords && (
-            <div className="absolute top-3 left-3 right-3 sm:right-auto z-20 bg-[#0d1c16]/95 backdrop-blur-md border border-amber-500/80 rounded-2xl p-2 sm:p-2.5 shadow-2xl flex items-center justify-between gap-2.5 animate-fadeIn">
-              <div className="flex items-center space-x-2 text-xs">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0" />
-                <div className="text-slate-100">
-                  <span className="text-amber-300 font-bold text-[11px] sm:text-xs">Выбрана точка: </span>
-                  <span className="font-mono text-[11px]">{clickedCoords.lat.toFixed(4)}°, {clickedCoords.lng.toFixed(4)}°</span>
-                </div>
-              </div>
-              <div className="flex items-center space-x-1.5 shrink-0">
-                {canCreateRecords && (
-                  <button
-                    onClick={() => {
-                      if (onOpenDataEntryWithCoords) {
-                        onOpenDataEntryWithCoords(clickedCoords);
-                      } else if (onMapClickCoordinates) {
-                        onMapClickCoordinates(clickedCoords.lat, clickedCoords.lng);
-                      }
-                    }}
-                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold shadow flex items-center space-x-1 transition"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>+ Замер</span>
-                  </button>
-                )}
-                {onClearClickedCoords && (
-                  <button
-                    onClick={onClearClickedCoords}
-                    className="px-2 py-1 bg-slate-800 hover:bg-rose-950 hover:border-rose-700 text-slate-300 hover:text-rose-200 rounded-lg text-[11px] font-medium border border-slate-700 transition"
-                    title="Убрать точку (не сохранять)"
-                  >
-                    ✖ Убрать
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Selected Station Card Banner at Bottom of Map */}
           {activeStation && (
             <div className="absolute bottom-3 left-3 right-3 z-20 bg-[#0d1c16]/95 backdrop-blur-md border border-emerald-500/60 rounded-2xl p-3 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -837,6 +801,17 @@ export const MapView: React.FC<MapViewProps> = ({
               </div>
 
               <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                {onOpenPassportModal && (
+                  <button
+                    onClick={() => onOpenPassportModal(activeStation)}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow transition flex items-center space-x-1 border border-amber-400/40 hover:scale-105"
+                    title="Открыть официальный QR Паспорт этого поста"
+                  >
+                    <QrCode className="w-3.5 h-3.5 text-amber-200" />
+                    <span>QR Паспорт</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => onSelectStation("ALL")}
                   className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium border border-slate-700 transition"

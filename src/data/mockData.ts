@@ -75,39 +75,39 @@ export const CATEGORIES: CategoryInfo[] = [
 
 export const INITIAL_STATIONS: MonitoringStation[] = [
   {
-    id: "st-alx-01",
-    code: "ALX-01",
-    name: "с. Александровка — речной пост",
-    category: "hydrosphere",
-    lat: 53.2167,
-    lng: 63.6333,
-    description: "Стационарный эко-пост на реке у с. Александровка",
-    establishedYear: 2021
+    id: "st-kst-01",
+    code: "KST-01",
+    name: "г. Костанай — городская эко-станция",
+    category: "atmosphere",
+    lat: 53.2144,
+    lng: 63.6246,
+    description: "Мониторинг качества воздуха, микроклимата и антропогенной нагрузки в городской черте Костаная",
+    establishedYear: 2022
   },
   {
     id: "st-tbl-01",
     code: "TBL-01",
-    name: "р. Тобол — створовый забор",
+    name: "р. Тобол — гидропост и створовый забор",
     category: "hydrosphere",
     lat: 53.1833,
     lng: 63.5833,
-    description: "Пост долговременного мониторинга бассейна реки Тобол",
+    description: "Пост долговременного мониторинга бассейна и качества воды реки Тобол",
     establishedYear: 2020
   },
   {
-    id: "st-kst-01",
-    code: "KST-01",
-    name: "Костанай — городская эко-станция",
-    category: "atmosphere",
-    lat: 53.2144,
-    lng: 63.6246,
-    description: "Мониторинг качества воздуха и антропогенной нагрузки в городской черте",
-    establishedYear: 2022
+    id: "st-alx-01",
+    code: "ALX-01",
+    name: "с. Александровка — речной эко-пост",
+    category: "hydrosphere",
+    lat: 53.4510,
+    lng: 63.8850,
+    description: "Стационарный эко-пост на речном створе у села Александровка (Костанайский район)",
+    establishedYear: 2021
   },
   {
     id: "st-ast-01",
     code: "AST-01",
-    name: "Астана — степной био-биоценоз",
+    name: "г. Астана — степной био-биоценоз",
     category: "biosphere",
     lat: 51.1693,
     lng: 71.4491,

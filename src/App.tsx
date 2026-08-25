@@ -14,6 +14,7 @@ import { StationPassportModal } from "./components/StationPassportModal";
 import { ClubSymbolismView } from "./components/ClubSymbolismView";
 import { AdminPanel } from "./components/AdminPanel";
 import { Footer } from "./components/Footer";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { supabase, getAccessControl, fetchNewspaperNotesFromSupabase, insertNewspaperNoteToSupabase, deleteNewspaperNoteFromSupabase } from "./lib/supabase";
 import { 
   loginUser, 
@@ -40,9 +41,11 @@ import {
   queuePublicationForSync,
   syncAllPendingData,
   subscribeToSyncState,
-  sanitizeRecordForSupabase
+  sanitizeRecordForSupabase,
+  decodeRecordFromSupabase
 } from "./services/offlineSyncService";
 
+import { exportJournalToExcel } from "./utils/excelExporter";
 import { 
   MonitoringStation, 
   MonitoringRecord, 
@@ -280,7 +283,8 @@ export default function App() {
         // Fetch Records from Supabase and merge pending offline records
         const { data: recordsData, error: recordsError } = await supabase.from('records').select('*');
         if (!recordsError && recordsData) {
-          const cleanRecordsData = recordsData.filter(r => !r.id?.startsWith("rec-demo-") && !r.id?.startsWith("demo-"));
+          const decodedRecords = recordsData.map(decodeRecordFromSupabase);
+          const cleanRecordsData = decodedRecords.filter(r => !r.id?.startsWith("rec-demo-") && !r.id?.startsWith("demo-"));
           const pendingOffline = getPendingRecords().filter(r => !r.id?.startsWith("rec-demo-") && !r.id?.startsWith("demo-"));
           if (pendingOffline.length > 0) {
             const pendingIds = new Set(pendingOffline.map(p => p.id));
@@ -356,6 +360,26 @@ export default function App() {
     };
   }, []);
 
+  // Handle direct navigation via QR code or URL hash e.g. #station-ALX-01
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (typeof window === "undefined") return;
+      const hash = window.location.hash;
+      if (hash && hash.startsWith("#station-")) {
+        const code = decodeURIComponent(hash.replace("#station-", ""));
+        const targetStation = stations.find(s => s.code.toLowerCase() === code.toLowerCase());
+        if (targetStation) {
+          setPassportStation(targetStation);
+          setIsPassportModalOpen(true);
+        }
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, [stations]);
+
   // State for manual status checking from banner
   const [isCheckingPendingStatus, setIsCheckingPendingStatus] = useState(false);
 
@@ -430,14 +454,42 @@ export default function App() {
     };
   }, [currentUser]);
 
-  // Sync Records and Stations to LocalStorage for full offline access
+  // Open Station Passport when navigated via QR-Code hash link (#station-CODE)
   useEffect(() => {
-    try {
-      localStorage.setItem("zemlyane_records", JSON.stringify(records));
-    } catch (e) {
-      console.warn("Could not save records to localStorage:", e);
-    }
-  }, [records]);
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash && hash.startsWith("#station-")) {
+        const code = decodeURIComponent(hash.replace("#station-", "")).trim();
+        if (code) {
+          const matched = stations.find(s => s.code.toLowerCase() === code.toLowerCase() || s.id === code);
+          if (matched) {
+            setPassportStation(matched);
+            setIsPassportModalOpen(true);
+          } else {
+            // If stations loaded later, fallback to finding in records or creating pseudo station
+            const recordWithStation = records.find(r => r.stationCode.toLowerCase() === code.toLowerCase());
+            if (recordWithStation) {
+              setPassportStation({
+                id: `st-${recordWithStation.stationCode}`,
+                code: recordWithStation.stationCode,
+                name: recordWithStation.stationName,
+                category: recordWithStation.category,
+                lat: recordWithStation.lat,
+                lng: recordWithStation.lng,
+                establishedYear: 2024,
+                description: `Стационарный пункт экологических наблюдений ${recordWithStation.stationName}`
+              });
+              setIsPassportModalOpen(true);
+            }
+          }
+        }
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, [stations, records]);
 
   useEffect(() => {
     try {
@@ -590,8 +642,77 @@ export default function App() {
 
   // Modal Control
   const [isDataEntryOpen, setIsDataEntryOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<MonitoringRecord | null>(null);
   const [preselectedStation, setPreselectedStation] = useState<MonitoringStation | null>(null);
   const [clickedCoords, setClickedCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  const handleOpenEditRecord = (record: MonitoringRecord) => {
+    setEditingRecord(record);
+    setSelectedCategoryForDataEntry(record.category);
+    setIsDataEntryOpen(true);
+  };
+
+  const handleUpdateRecord = async (updatedRec: MonitoringRecord) => {
+    const online = typeof navigator !== "undefined" ? navigator.onLine : true;
+
+    // Update local state immediately
+    setRecords(prev => prev.map(r => r.id === updatedRec.id ? updatedRec : r));
+
+    // Also ensure station exists or is updated
+    const existingStation = stations.find(s => s.code === updatedRec.stationCode);
+    if (!existingStation) {
+      const newStation: MonitoringStation = {
+        id: `st-${Date.now()}`,
+        code: updatedRec.stationCode,
+        name: updatedRec.stationName,
+        category: updatedRec.category,
+        lat: updatedRec.lat,
+        lng: updatedRec.lng,
+        description: `Станция наблюдения: ${updatedRec.stationName}`,
+        establishedYear: new Date().getFullYear()
+      };
+      setStations(prev => [...prev, newStation]);
+      if (online) {
+        try {
+          await supabase.from('stations').insert([newStation]);
+        } catch (stErr) {
+          console.warn("Station sync notice:", stErr);
+        }
+      }
+    }
+
+    if (!online) {
+      showToast("📡 Изменения сохранены локально (офлайн). Будут синхронизированы при появлении сети.");
+      return;
+    }
+
+    try {
+      let payload = sanitizeRecordForSupabase(updatedRec, false);
+      let { error } = await supabase.from('records').upsert([payload]);
+      if (
+        error &&
+        (error.message?.includes("isAnomaly") ||
+          error.message?.includes("aiAlert") ||
+          error.message?.includes("researcherName") ||
+          error.message?.includes("schema cache") ||
+          error.message?.includes("column"))
+      ) {
+        payload = sanitizeRecordForSupabase(updatedRec, true);
+        const retry = await supabase.from('records').upsert([payload]);
+        error = retry.error;
+      }
+
+      if (error) {
+        console.warn("Supabase upsert error on update record:", error);
+        showToast("Замер обновлен локально.", "info");
+      } else {
+        showToast("✅ Замер успешно обновлен в полевом журнале и базе данных!");
+      }
+    } catch (err: any) {
+      console.error("Error updating record in Supabase:", err);
+      showToast("Замер обновлен локально.", "info");
+    }
+  };
 
   // Category Icon Renderer
   const renderCategoryIcon = (iconName: string) => {
@@ -810,62 +931,27 @@ export default function App() {
     showToast("Текущие метеоданные успешно занесены в полевой журнал!");
   };
 
-  const handleExportCsv = () => {
-    const targetRecords = records.filter(r => {
-      if (filterState.category !== "ALL" && r.category !== filterState.category) return false;
-      if (filterState.stationCode !== "ALL" && r.stationCode !== filterState.stationCode) return false;
-      if (filterState.dateFrom && r.date < filterState.dateFrom) return false;
-      if (filterState.dateTo && r.date > filterState.dateTo) return false;
-      return true;
-    });
+  const handleExportCsv = async () => {
+    try {
+      const targetRecords = records.filter(r => {
+        if (filterState.category !== "ALL" && r.category !== filterState.category) return false;
+        if (filterState.stationCode !== "ALL" && r.stationCode !== filterState.stationCode) return false;
+        if (filterState.dateFrom && r.date < filterState.dateFrom) return false;
+        if (filterState.dateTo && r.date > filterState.dateTo) return false;
+        return true;
+      });
 
-    if (targetRecords.length === 0) {
-      showToast("Нет данных для экспорта с выбранными фильтрами!", "warning");
-      return;
-    }
-
-    const headers = ["Шифр Станции", "Название Станции", "Категория", "Дата", "Широта", "Долгота", "Исследователь", "Значения", "Примечания"];
-    
-    const rows = targetRecords.map(r => {
-      let vals = "";
-      if (r.hydrosphere) {
-        vals = `Вода:${r.hydrosphere.waterTemp ?? "нет замера"}°C, Прозрачность:${r.hydrosphere.transparency ?? "нет замера"}см, pH:${r.hydrosphere.ph ?? "нет замера"}, TDS:${r.hydrosphere.tds ?? "нет замера"}`;
-      } else if (r.atmosphere) {
-        vals = `Воздух:${r.atmosphere.airTemp ?? "нет замера"}°C, Влажность:${r.atmosphere.humidity ?? "нет замера"}%, CO2:${r.atmosphere.co2Ppm ?? "нет замера"}ppm`;
-      } else if (r.lithosphere) {
-        vals = `pH почва:${r.lithosphere.soilPh ?? "нет замера"}, Состав:${r.lithosphere.texture ?? "нет замера"}`;
-      } else if (r.biosphere) {
-        vals = `Шеннон H':${r.biosphere.shannonIndex ?? "нет замера"}, Флора:${r.biosphere.floraSpecies ?? "нет замера"}`;
-      } else if (r.anthropogenic) {
-        vals = `Мусор:${r.anthropogenic.litterLevel ?? "нет замера"}/5, Шум:${r.anthropogenic.noiseLevel ?? "нет замера"}дБА`;
-      } else if (r.geology) {
-        vals = `Минерал:${r.geology.mineralName ?? "нет замера"}, Твердость:${r.geology.mohsHardness ?? "нет замера"}`;
-      } else if (r.fossils) {
-        vals = `Фоссилия:${r.fossils.organismGroup ?? "нет замера"}, Длина:${r.fossils.lengthMm ?? "нет замера"}мм`;
+      if (targetRecords.length === 0) {
+        showToast("Нет данных для экспорта с выбранными фильтрами!", "warning");
+        return;
       }
 
-      return [
-        `"${r.stationCode}"`,
-        `"${r.stationName}"`,
-        `"${r.category}"`,
-        `"${r.date}"`,
-        `"${r.lat}"`,
-        `"${r.lng}"`,
-        `"${r.researcherName}"`,
-        `"${vals}"`,
-        `"${(r.notes || "").replace(/"/g, '""')}"`
-      ].join(",");
-    });
-
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `zemlyane_dataspace_${filterState.category}_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      await exportJournalToExcel(records, filterState);
+      showToast("✅ Полевой научный журнал успешно экспортирован в Excel (.xlsx)!");
+    } catch (err: any) {
+      console.error("Export Excel error:", err);
+      showToast("Ошибка при генерации Excel файла: " + (err.message || "Неизвестная ошибка"), "warning");
+    }
   };
 
   const fontSizeClass = fontSize === "compact" 
@@ -1212,6 +1298,10 @@ export default function App() {
                     setPreselectedStation(st);
                     setIsDataEntryOpen(true);
                   }}
+                  onOpenPassportModal={(st) => {
+                    setPassportStation(st || stations[0] || null);
+                    setIsPassportModalOpen(true);
+                  }}
                   canCreateRecords={accessControl.canCreateRecords}
                 />
 
@@ -1221,6 +1311,7 @@ export default function App() {
                   stations={stations}
                   onDeleteRecord={handleDeleteRecord}
                   onDeleteStation={handleDeleteStation}
+                  onEditRecord={handleOpenEditRecord}
                   onExportCsv={handleExportCsv}
                   selectedCategory={filterState.category}
                   setSelectedCategory={(cat) => setFilterState(prev => ({ ...prev, category: cat }))}
@@ -1315,7 +1406,7 @@ export default function App() {
         {activeTab === "admin" && (
           <AdminPanel
             currentUser={currentUser}
-            onNavigateToTab={setActiveTab}
+            onNavigateToTab={(tab: any) => setActiveTab(tab)}
             onRefreshAppState={fetchPendingUsersCount}
           />
         )}
@@ -1334,10 +1425,13 @@ export default function App() {
         isOpen={isDataEntryOpen}
         onClose={() => {
           setIsDataEntryOpen(false);
+          setEditingRecord(null);
           setSelectedCategoryForDataEntry(null);
         }}
         stations={stations}
         onAddRecord={handleAddRecord}
+        onUpdateRecord={handleUpdateRecord}
+        editingRecord={editingRecord}
         preselectedStation={preselectedStation}
         initialCategory={selectedCategoryForDataEntry}
         clickedCoords={clickedCoords}
@@ -1369,13 +1463,17 @@ export default function App() {
         isDark={isDark}
       />
 
-      <StationPassportModal
-        isOpen={isPassportModalOpen}
-        onClose={() => setIsPassportModalOpen(false)}
-        station={passportStation || stations[0] || null}
-        records={records}
-        isDark={isDark}
-      />
+      <ErrorBoundary fallbackTitle="Паспорт экологического стационара">
+        <StationPassportModal
+          isOpen={isPassportModalOpen}
+          onClose={() => setIsPassportModalOpen(false)}
+          station={passportStation || stations[0] || null}
+          stations={stations}
+          onSelectStation={(st) => setPassportStation(st)}
+          records={records}
+          isDark={isDark}
+        />
+      </ErrorBoundary>
 
       <Footer />
 

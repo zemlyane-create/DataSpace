@@ -16,13 +16,15 @@ import {
   Wifi,
   WifiOff,
   CloudUpload,
-  Clock
+  Clock,
+  Edit3
 } from "lucide-react";
 
 interface DataTableProps {
   records: MonitoringRecord[];
   stations?: MonitoringStation[];
   onDeleteRecord: (id: string) => void;
+  onEditRecord?: (record: MonitoringRecord) => void;
   onDeleteStation?: (code: string) => void;
   onExportCsv: () => void;
   selectedCategory: ResearchCategory | "ALL";
@@ -49,6 +51,7 @@ export const DataTable: React.FC<DataTableProps> = ({
   records,
   stations = [],
   onDeleteRecord,
+  onEditRecord,
   onDeleteStation,
   onExportCsv,
   selectedCategory,
@@ -117,14 +120,25 @@ export const DataTable: React.FC<DataTableProps> = ({
           {onOpenPassportModal && (
             <button
               onClick={() => {
-                const activeSt = stations.find(s => s.code === selectedStationCode) || stations[0];
-                onOpenPassportModal(activeSt);
+                const activeSt = stations.find(s => s.code === selectedStationCode) || stations[0] || (records.length > 0 ? {
+                  id: `st-${records[0].stationCode}`,
+                  code: records[0].stationCode,
+                  name: records[0].stationName,
+                  lat: records[0].lat,
+                  lng: records[0].lng,
+                  category: records[0].category,
+                  establishedYear: 2024,
+                  description: "Стационарный пункт экологических наблюдений."
+                } : null);
+                if (activeSt) {
+                  onOpenPassportModal(activeSt);
+                }
               }}
-              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs shadow transition flex items-center space-x-1.5 border border-amber-400/50 hover:scale-105 shrink-0"
-              title="Открыть QR Паспорт выбранного поста или локации"
+              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs shadow transition flex items-center space-x-1.5 border border-amber-400/50 hover:scale-105 shrink-0 cursor-pointer"
+              title="Открыть Паспорт стационара"
             >
               <QrCode className="w-4 h-4 text-amber-200" />
-              <span>QR Паспорт поста</span>
+              <span>Паспорт стационара</span>
             </button>
           )}
 
@@ -141,10 +155,11 @@ export const DataTable: React.FC<DataTableProps> = ({
           {canExportData && (
             <button
               onClick={onExportCsv}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold text-xs sm:text-sm shadow-md transition flex items-center justify-center space-x-2 border border-emerald-400/40 shrink-0"
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold text-xs sm:text-sm shadow-md transition flex items-center justify-center space-x-2 border border-emerald-400/40 shrink-0 hover:scale-105"
+              title="Скачать структурированную таблицу Excel со всеми параметрами в отдельных колонках, границами и переносом текста"
             >
               <Download className="w-4 h-4" />
-              <span>Экспорт журнала (CSV / Excel)</span>
+              <span>Экспорт журнала (Excel .xlsx)</span>
             </button>
           )}
         </div>
@@ -281,6 +296,19 @@ export const DataTable: React.FC<DataTableProps> = ({
                   valSummary = "нет замера";
                 }
 
+                // Add custom attributes to summary if present
+                if (rec.customAttributes) {
+                  const customList = Array.isArray(rec.customAttributes)
+                    ? rec.customAttributes
+                    : Object.values(rec.customAttributes);
+                  if (customList.length > 0) {
+                    const customSummary = customList
+                      .map(cm => `${cm.name}: ${cm.value}${cm.unit ? " " + cm.unit : ""}`)
+                      .join(", ");
+                    valSummary = valSummary === "нет замера" ? customSummary : `${valSummary}; ${customSummary}`;
+                  }
+                }
+
                 return (
                   <tr key={rec.id} className="hover:bg-emerald-950/40 transition">
                     <td className="p-3 font-mono font-bold text-amber-300">
@@ -327,6 +355,15 @@ export const DataTable: React.FC<DataTableProps> = ({
                       >
                         <Eye className="w-3.5 h-3.5 text-emerald-300" />
                       </button>
+                      {onEditRecord && (
+                        <button
+                          onClick={() => onEditRecord(rec)}
+                          title="Редактировать замер (станцию, категорию, дату, показатели)"
+                          className="p-1.5 bg-[#13261f] hover:bg-amber-700/60 text-slate-200 hover:text-amber-300 rounded-lg transition border border-emerald-700/60"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                        </button>
+                      )}
                       {canDeleteRecords && (
                         <button
                           onClick={() => setRecordToDelete(rec)}
@@ -443,6 +480,28 @@ export const DataTable: React.FC<DataTableProps> = ({
                   <div>Длина: <strong>{fmtVal(viewRecord.fossils.lengthMm, " мм")}</strong></div>
                 </div>
               )}
+
+              {/* Custom Attributes in View Modal */}
+              {viewRecord.customAttributes && (
+                (() => {
+                  const customList = Array.isArray(viewRecord.customAttributes)
+                    ? viewRecord.customAttributes
+                    : Object.values(viewRecord.customAttributes);
+                  if (customList.length === 0) return null;
+                  return (
+                    <div className="pt-2 border-t border-emerald-800/60 mt-2">
+                      <div className="text-[11px] font-bold text-teal-300 mb-1">Пользовательские параметры:</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {customList.map((cm, idx) => (
+                          <div key={cm.id || idx}>
+                            {cm.name}: <strong className="text-amber-300 font-mono">{cm.value} {cm.unit || ""}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
             </div>
 
             {viewRecord.notes && (
@@ -451,21 +510,39 @@ export const DataTable: React.FC<DataTableProps> = ({
               </div>
             )}
 
-            <div className="mt-5 flex items-center justify-between pt-3 border-t border-emerald-900/60">
-              <button
-                onClick={() => setRecordToDelete(viewRecord)}
-                className="px-3.5 py-2 bg-rose-950 hover:bg-rose-900 text-rose-200 border border-rose-800 rounded-xl font-bold text-xs transition flex items-center space-x-1.5"
-              >
-                <Trash2 className="w-4 h-4 text-rose-400" />
-                <span>Удалить этот замер</span>
-              </button>
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-emerald-900/60">
+              {canDeleteRecords ? (
+                <button
+                  onClick={() => setRecordToDelete(viewRecord)}
+                  className="px-3.5 py-2 bg-rose-950 hover:bg-rose-900 text-rose-200 border border-rose-800 rounded-xl font-bold text-xs transition flex items-center space-x-1.5"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-400" />
+                  <span>Удалить этот замер</span>
+                </button>
+              ) : <div />}
 
-              <button
-                onClick={() => setViewRecord(null)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow transition"
-              >
-                Закрыть карточку
-              </button>
+              <div className="flex items-center space-x-2">
+                {onEditRecord && (
+                  <button
+                    onClick={() => {
+                      const target = viewRecord;
+                      setViewRecord(null);
+                      onEditRecord(target);
+                    }}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold rounded-xl text-xs flex items-center space-x-1.5 transition shadow active:scale-95"
+                  >
+                    <Edit3 className="w-4 h-4 text-slate-950" />
+                    <span>Редактировать замер</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setViewRecord(null)}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow transition"
+                >
+                  Закрыть карточку
+                </button>
+              </div>
             </div>
           </div>
         </div>

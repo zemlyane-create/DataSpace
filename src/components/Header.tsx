@@ -151,7 +151,7 @@ export const Header: React.FC<HeaderProps> = ({
                   src={logoSrc}
                   alt="Логотип Земляне"
                   referrerPolicy="no-referrer"
-                  className="w-12 h-12 sm:w-16 sm:h-16 object-contain group-hover:scale-105 transition-transform duration-200"
+                  className="w-20 h-20 sm:w-28 sm:h-28 object-contain group-hover:scale-105 transition-transform duration-200 drop-shadow-md"
                 />
               </button>
 

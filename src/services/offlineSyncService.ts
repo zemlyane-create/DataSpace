@@ -8,7 +8,7 @@
  * Handles automatic uploading of offline Base64 field photos to Supabase Storage.
  */
 
-import { MonitoringRecord, NewspaperNote } from "../types";
+import { MonitoringRecord, NewspaperNote, CustomMetric } from "../types";
 import { SupabaseEvent } from "../lib/supabase";
 import { supabase } from "../lib/supabase";
 
@@ -285,7 +285,8 @@ export function getTotalPendingCount(): number {
 
 /**
  * Prepares record payload for Supabase database.
- * Strips client-only UI flags and ensures backwards compatibility.
+ * Strips client-only UI flags, serializes custom parameters safely into notes/metadata to avoid
+ * PostgREST schema cache errors on unmigrated tables, and ensures backwards compatibility.
  */
 export function sanitizeRecordForSupabase(
   record: MonitoringRecord, 
@@ -294,8 +295,31 @@ export function sanitizeRecordForSupabase(
   const { isOfflinePending, syncStatus, ...rest } = record;
   const payload: Record<string, any> = {};
 
+  // Extract customAttributes if any
+  const rawCustom = record.customAttributes;
+  const customAttrs: CustomMetric[] = Array.isArray(rawCustom)
+    ? rawCustom
+    : rawCustom && typeof rawCustom === "object"
+    ? Object.values(rawCustom)
+    : [];
+
+  let serializedNotes = record.notes || "";
+
+  // If custom attributes exist, embed them into notes with a safe invisible marker
+  // so they are persisted to Supabase without requiring a schema migration in PostgreSQL
+  if (customAttrs.length > 0) {
+    // Strip existing marker if present
+    const cleanNotes = serializedNotes.replace(/\n?<!--CUSTOM_METRICS:.*?-->/s, "").trim();
+    const encoded = `<!--CUSTOM_METRICS:${JSON.stringify(customAttrs)}-->`;
+    serializedNotes = cleanNotes ? `${cleanNotes}\n${encoded}` : encoded;
+  }
+
   for (const [key, value] of Object.entries(rest)) {
     if (value !== undefined) {
+      // Never send client-only or unmigrated customAttributes as a raw column to avoid schema cache errors
+      if (key === "customAttributes" || key === "custom_attributes") {
+        continue;
+      }
       if (
         omitUnmigratedCols &&
         (key === "isAnomaly" || key === "aiAlert" || key === "researcherName")
@@ -305,6 +329,9 @@ export function sanitizeRecordForSupabase(
       payload[key] = value;
     }
   }
+
+  // Set serialized notes containing embedded custom metrics
+  payload.notes = serializedNotes;
 
   // Ensure snake_case field aliases are also populated for database schema versatility
   if (record.stationCode && !payload.station_code) {
@@ -318,6 +345,49 @@ export function sanitizeRecordForSupabase(
   }
 
   return payload;
+}
+
+/**
+ * Decodes record from Supabase, restoring customAttributes from either raw column
+ * or extracted from embedded metadata inside notes.
+ */
+export function decodeRecordFromSupabase(raw: any): MonitoringRecord {
+  if (!raw) return raw;
+  const rec: MonitoringRecord = { ...raw };
+
+  // 1. Resolve custom attributes
+  if (rec.customAttributes && Array.isArray(rec.customAttributes)) {
+    // Already populated
+  } else if (raw.custom_attributes && Array.isArray(raw.custom_attributes)) {
+    rec.customAttributes = raw.custom_attributes;
+  } else if (typeof rec.notes === "string" && rec.notes.includes("<!--CUSTOM_METRICS:")) {
+    try {
+      const match = rec.notes.match(/<!--CUSTOM_METRICS:(.*?)-->/s);
+      if (match && match[1]) {
+        const parsed = JSON.parse(match[1]);
+        if (Array.isArray(parsed)) {
+          rec.customAttributes = parsed;
+        }
+      }
+      // Clean visible notes string
+      rec.notes = rec.notes.replace(/\n?<!--CUSTOM_METRICS:.*?-->/s, "").trim();
+    } catch (e) {
+      console.warn("[offlineSyncService] Error decoding custom attributes from notes:", e);
+    }
+  }
+
+  // 2. Normalize aliases
+  if (!rec.stationCode && raw.station_code) {
+    rec.stationCode = raw.station_code;
+  }
+  if (!rec.stationName && raw.station_name) {
+    rec.stationName = raw.station_name;
+  }
+  if (!rec.researcherName && raw.researcher_name) {
+    rec.researcherName = raw.researcher_name;
+  }
+
+  return rec;
 }
 
 // ==========================================

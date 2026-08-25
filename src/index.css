@@ -48,3 +48,15 @@
   background: #0f172a !important;
 }
 
+/* Print and PDF Export Optimization */
+@media print {
+  body {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #111827 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
